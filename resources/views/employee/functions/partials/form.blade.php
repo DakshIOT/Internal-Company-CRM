@@ -44,7 +44,7 @@
     </article>
 
     <div class="flex flex-col gap-3 sm:flex-row">
-        <button type="submit" class="crm-button crm-button-primary justify-center">
+        <button type="submit" data-loading-label="{{ $isEditing ? 'Saving...' : 'Creating...' }}" class="crm-button crm-button-primary justify-center">
             {{ $isEditing ? 'Save base details' : 'Create function entry' }}
         </button>
         <a href="{{ route('employee.functions.index') }}" class="crm-button crm-button-secondary justify-center">

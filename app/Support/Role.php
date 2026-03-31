@@ -60,7 +60,7 @@ class Role
     public static function modulesFor(string $role): array
     {
         return match ($role) {
-            self::ADMIN => ['Global dashboard', 'Employee management', 'Venue management', 'Reporting', 'Exports'],
+            self::ADMIN => ['Global dashboard', 'Employee management', 'Venue management', 'Admin Income', 'Reporting', 'Exports'],
             self::EMPLOYEE_A => ['Function Entry', 'Daily Income', 'Daily Billing'],
             self::EMPLOYEE_B => ['Function Entry', 'Daily Income', 'Daily Billing', 'Vendor Entry'],
             self::EMPLOYEE_C => ['Function Entry'],

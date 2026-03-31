@@ -133,7 +133,7 @@ class FunctionEntryController extends Controller
             'currentVenue' => $functionEntry->venue,
             'functionEntry' => $functionEntry,
             'modeOptions' => \App\Support\TransactionMode::options(),
-            'selectedTab' => $request->query('tab', 'packages'),
+            'selectedTab' => $request->query('tab'),
             'workspaceTotals' => $this->workspaceTotalsService->forUserVenue(
                 $user,
                 $venueId,

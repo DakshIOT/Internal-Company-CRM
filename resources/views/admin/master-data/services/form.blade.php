@@ -75,7 +75,7 @@
             @endif
 
             <div class="flex flex-col gap-3">
-                <button type="submit" class="crm-button crm-button-primary justify-center">
+                <button type="submit" data-loading-label="{{ $isEditing ? 'Saving...' : 'Creating...' }}" class="crm-button crm-button-primary justify-center">
                     {{ $isEditing ? 'Save service' : 'Create service' }}
                 </button>
                 <a href="{{ route('admin.master-data.services.index') }}" class="crm-button crm-button-secondary justify-center">

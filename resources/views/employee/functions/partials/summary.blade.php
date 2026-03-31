@@ -16,9 +16,9 @@
                 <p class="crm-section-title">Discounts</p>
                 <p class="mt-2 text-xl font-semibold text-slate-950">{{ Money::formatMinor($functionEntry->discount_total_minor) }}</p>
             </div>
-            <div class="rounded-[1.5rem] bg-slate-950 p-4 text-white">
-                <p class="crm-section-title text-cyan-200">Function Total</p>
-                <p class="mt-2 text-xl font-semibold">{{ Money::formatMinor($functionEntry->function_total_minor) }}</p>
+            <div class="rounded-[1.5rem] border border-cyan-200 bg-cyan-50 p-4">
+                <p class="crm-section-title text-cyan-700">Function Total</p>
+                <p class="mt-2 text-xl font-semibold text-cyan-950">{{ Money::formatMinor($functionEntry->function_total_minor) }}</p>
             </div>
             <div class="rounded-[1.5rem] bg-white p-4 ring-1 ring-slate-100">
                 <p class="crm-section-title">Paid</p>
@@ -36,9 +36,9 @@
                     <p class="crm-section-title text-cyan-700">Frozen Fund</p>
                     <p class="mt-2 text-xl font-semibold text-cyan-900">{{ Money::formatMinor($functionEntry->frozen_fund_minor) }}</p>
                 </div>
-                <div class="rounded-[1.5rem] bg-cyan-950 p-4 text-white">
-                    <p class="crm-section-title text-cyan-200">Net After Frozen Fund</p>
-                    <p class="mt-2 text-xl font-semibold">{{ Money::formatMinor($functionEntry->net_total_after_frozen_fund_minor) }}</p>
+                <div class="rounded-[1.5rem] border border-sky-200 bg-sky-50 p-4">
+                    <p class="crm-section-title text-sky-700">Net After Frozen Fund</p>
+                    <p class="mt-2 text-xl font-semibold text-sky-950">{{ Money::formatMinor($functionEntry->net_total_after_frozen_fund_minor) }}</p>
                 </div>
             </div>
         @endif

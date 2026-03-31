@@ -70,6 +70,26 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(FunctionEntry::class);
     }
 
+    public function dailyIncomeEntries(): HasMany
+    {
+        return $this->hasMany(DailyIncomeEntry::class);
+    }
+
+    public function dailyBillingEntries(): HasMany
+    {
+        return $this->hasMany(DailyBillingEntry::class);
+    }
+
+    public function vendorEntries(): HasMany
+    {
+        return $this->hasMany(VendorEntry::class);
+    }
+
+    public function adminIncomeEntries(): HasMany
+    {
+        return $this->hasMany(AdminIncomeEntry::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === Role::ADMIN;

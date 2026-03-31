@@ -82,7 +82,7 @@
             @endif
 
             <div class="flex flex-col gap-3">
-                <button type="submit" class="crm-button crm-button-primary justify-center">{{ $isEditing ? 'Save user' : 'Create user' }}</button>
+                <button type="submit" data-loading-label="{{ $isEditing ? 'Saving...' : 'Creating...' }}" class="crm-button crm-button-primary justify-center">{{ $isEditing ? 'Save user' : 'Create user' }}</button>
                 <a href="{{ route('admin.master-data.employees.index') }}" class="crm-button crm-button-secondary justify-center">Back to users</a>
             </div>
         </aside>

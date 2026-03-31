@@ -89,7 +89,7 @@
             </article>
 
             <div class="flex flex-col gap-3">
-                <button type="submit" class="crm-button crm-button-primary justify-center">
+                <button type="submit" data-loading-label="{{ $isEditing ? 'Saving...' : 'Creating...' }}" class="crm-button crm-button-primary justify-center">
                     {{ $isEditing ? 'Save package' : 'Create package' }}
                 </button>
                 <a href="{{ route('admin.master-data.packages.index') }}" class="crm-button crm-button-secondary justify-center">

@@ -54,6 +54,21 @@ class Venue extends Model
         return $this->hasMany(FunctionEntry::class);
     }
 
+    public function dailyIncomeEntries(): HasMany
+    {
+        return $this->hasMany(DailyIncomeEntry::class);
+    }
+
+    public function dailyBillingEntries(): HasMany
+    {
+        return $this->hasMany(DailyBillingEntry::class);
+    }
+
+    public function vendorEntries(): HasMany
+    {
+        return $this->hasMany(VendorEntry::class);
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);

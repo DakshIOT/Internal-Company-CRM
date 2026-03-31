@@ -23,7 +23,7 @@
             ></div>
 
             <aside
-                class="fixed inset-y-0 left-0 z-50 w-72 transform border-r border-white/10 bg-slate-950/95 text-white shadow-2xl transition duration-300 ease-out lg:translate-x-0"
+                class="fixed inset-y-0 left-0 z-50 w-[18.25rem] max-w-[86vw] transform overflow-y-auto border-r border-white/10 bg-slate-950/95 text-white shadow-2xl transition duration-300 ease-out lg:w-72 lg:max-w-none lg:translate-x-0"
                 :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
             >
                 @include('layouts.partials.sidebar')
@@ -32,7 +32,7 @@
             <div class="relative min-h-screen">
                 @include('layouts.partials.topbar', ['header' => $header ?? null])
 
-                <main class="px-4 pb-8 pt-24 sm:px-6 lg:px-8 xl:px-10">
+                <main class="px-3 py-4 sm:px-6 sm:py-5 lg:px-8 xl:px-10">
                     {{ $slot }}
                 </main>
             </div>

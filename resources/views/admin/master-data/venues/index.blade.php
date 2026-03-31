@@ -1,11 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="crm-toolbar">
             <div>
                 <p class="crm-section-title">Admin Master Data</p>
                 <h1 class="mt-2 font-display text-3xl font-semibold text-slate-950">Venues</h1>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    Manage venue contexts, active state, and the four vendor slots that Employee Type B will use later.
+                    Manage venue contexts, vendor slots, and the employee workspaces that depend on them.
                 </p>
             </div>
             <a href="{{ route('admin.master-data.venues.create') }}" class="crm-button crm-button-primary justify-center">
@@ -17,7 +17,7 @@
     @include('admin.master-data.partials.nav')
 
     <div class="space-y-6">
-        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section class="crm-summary-grid">
             <article class="crm-kpi">
                 <p class="crm-section-title">Total venues</p>
                 <p class="mt-4 font-display text-3xl font-semibold text-slate-950">{{ $stats['total'] }}</p>
@@ -51,58 +51,35 @@
             </form>
         </section>
 
-        <section class="space-y-4 lg:hidden">
-            @forelse ($venues as $venue)
-                <article class="crm-panel p-5">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <p class="crm-section-title">Venue</p>
-                            <h2 class="mt-2 text-xl font-semibold text-slate-950">{{ $venue->name }}</h2>
-                            <p class="mt-2 text-sm text-slate-500">{{ $venue->code ?: 'No code' }}</p>
-                        </div>
-                        <span class="crm-chip {{ $venue->is_active ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-500' }}">
-                            {{ $venue->is_active ? 'Active' : 'Inactive' }}
-                        </span>
-                    </div>
-                    <div class="mt-4 flex items-center justify-between text-sm text-slate-600">
-                        <span>{{ $venue->users_count }} assigned users</span>
-                        <a href="{{ route('admin.master-data.venues.edit', $venue) }}" class="font-semibold text-cyan-700">Edit</a>
-                    </div>
-                </article>
-            @empty
-                <article class="crm-panel p-8 text-center text-sm text-slate-500">
-                    No venues found for the current filter.
-                </article>
-            @endforelse
-        </section>
-
-        <section class="crm-panel hidden overflow-hidden lg:block">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-100 text-sm">
-                    <thead class="bg-slate-50/90 text-left text-slate-500">
+        <section class="crm-panel overflow-hidden">
+            <div class="crm-table-wrap rounded-none border-0">
+                <table class="crm-table min-w-[980px]">
+                    <thead>
                         <tr>
-                            <th class="px-6 py-4 font-semibold">Venue</th>
-                            <th class="px-6 py-4 font-semibold">Code</th>
-                            <th class="px-6 py-4 font-semibold">Users</th>
-                            <th class="px-6 py-4 font-semibold">Status</th>
-                            <th class="px-6 py-4 font-semibold text-right">Actions</th>
+                            <th>Venue</th>
+                            <th>Code</th>
+                            <th>Assigned Users</th>
+                            <th>Vendor Slots</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100 bg-white/80">
+                    <tbody class="divide-y divide-slate-100">
                         @forelse ($venues as $venue)
                             <tr>
-                                <td class="px-6 py-4">
+                                <td>
                                     <p class="font-semibold text-slate-900">{{ $venue->name }}</p>
                                 </td>
-                                <td class="px-6 py-4 text-slate-600">{{ $venue->code ?: 'No code' }}</td>
-                                <td class="px-6 py-4 text-slate-600">{{ $venue->users_count }}</td>
-                                <td class="px-6 py-4">
+                                <td>{{ $venue->code ?: 'No code' }}</td>
+                                <td>{{ $venue->users_count }}</td>
+                                <td>{{ $venue->vendors_count ?? 4 }}</td>
+                                <td>
                                     <span class="crm-chip {{ $venue->is_active ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-500' }}">
                                         {{ $venue->is_active ? 'Active' : 'Inactive' }}
                                     </span>
                                 </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex justify-end gap-2">
+                                <td>
+                                    <div class="flex flex-wrap gap-2">
                                         <a href="{{ route('admin.master-data.venues.edit', $venue) }}" class="crm-button crm-button-secondary">Edit</a>
                                         <form method="POST" action="{{ route('admin.master-data.venues.destroy', $venue) }}" onsubmit="return confirm('Delete this venue?');">
                                             @csrf
@@ -116,7 +93,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-10 text-center text-slate-500">No venues found.</td>
+                                <td colspan="6" class="px-4 py-10 text-center text-slate-500">No venues found.</td>
                             </tr>
                         @endforelse
                     </tbody>

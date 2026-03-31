@@ -50,6 +50,7 @@
 - Scope every employee-facing query by selected venue and authenticated user permissions.
 - Use explicit report filter contracts for admin reports and exports.
 - Prefer database aggregation for totals and reporting. Do not sum production totals from eager-loaded collections when SQL can do it.
+- Ledger modules should prefer shared services, requests, view partials, and query helpers over a generic runtime-configured CRUD layer.
 
 ## UI Rules
 - Build server-first UI by default.

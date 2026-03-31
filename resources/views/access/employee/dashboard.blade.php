@@ -26,14 +26,21 @@
 
             <article class="crm-panel p-6">
                 <p class="crm-section-title">Foundation status</p>
-                <h2 class="mt-3 font-display text-2xl font-semibold text-slate-950">Phase 3 foundation</h2>
+                <h2 class="mt-3 font-display text-2xl font-semibold text-slate-950">Phase 4 ledger layer</h2>
                 <p class="mt-3 text-sm leading-6 text-slate-600">
-                    Function Entry is ready in this venue with staged package, charge, installment, discount, and attachment handling. The remaining ledger and reporting modules are still intentionally deferred.
+                    Function Entry is ready in this venue with staged package, charge, installment, discount, and attachment handling. Daily Income and Daily Billing are now live for supported roles, and Vendor Entry is live for Employee Type B.
                 </p>
                 <div class="mt-5 flex flex-wrap gap-2">
                     <span class="crm-chip bg-cyan-50 text-cyan-700">Function Entry</span>
-                    <span class="crm-chip bg-cyan-50 text-cyan-700">Venue enforcement</span>
-                    <span class="crm-chip bg-cyan-50 text-cyan-700">Responsive shell</span>
+                    @if (in_array('Daily Income', $modules, true))
+                        <span class="crm-chip bg-cyan-50 text-cyan-700">Daily Income</span>
+                    @endif
+                    @if (in_array('Daily Billing', $modules, true))
+                        <span class="crm-chip bg-cyan-50 text-cyan-700">Daily Billing</span>
+                    @endif
+                    @if (in_array('Vendor Entry', $modules, true))
+                        <span class="crm-chip bg-cyan-50 text-cyan-700">Vendor Entry</span>
+                    @endif
                 </div>
             </article>
         </section>
@@ -46,12 +53,20 @@
                     <article class="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
                         <div class="flex items-center justify-between gap-3">
                             <span class="font-semibold text-slate-900">{{ $module }}</span>
-                            <span class="crm-chip bg-white text-slate-500">{{ $module === 'Function Entry' ? 'Live' : 'Planned' }}</span>
+                            <span class="crm-chip bg-white text-slate-500">{{ in_array($module, ['Function Entry', 'Daily Income', 'Daily Billing', 'Vendor Entry'], true) ? 'Live' : 'Planned' }}</span>
                         </div>
                         <p class="mt-3 text-sm leading-6 text-slate-600">
-                            {{ $module === 'Function Entry'
-                                ? 'This module is active now for your current venue, including packages, adjustments, installments, discounts, and attachments.'
-                                : 'This module is unlocked for your role in the approved plan and will be built in the next phases.' }}
+                            @if ($module === 'Function Entry')
+                                This module is active now for your current venue, including packages, adjustments, installments, discounts, and attachments.
+                            @elseif ($module === 'Daily Income')
+                                This module is active now for the selected venue, including date totals, grand totals, and secure attachment handling.
+                            @elseif ($module === 'Daily Billing')
+                                This module is active now for the selected venue, including date totals, grand totals, and secure attachment handling.
+                            @elseif ($module === 'Vendor Entry')
+                                This module is active now for the selected venue with four admin-defined vendor slots, vendor totals, and secure attachment handling.
+                            @else
+                                This module is unlocked for your role in the approved plan and will be built in the next phases.
+                            @endif
                         </p>
                     </article>
                 @endforeach
