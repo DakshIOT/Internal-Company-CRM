@@ -200,6 +200,11 @@ Recommended production target:
 - MySQL / MariaDB
 - SSH enabled
 
+Deployment files included in this repo:
+
+- Production environment template: [`.env.production.example`](./.env.production.example)
+- Full Hostinger checklist: [`docs/HOSTINGER_DEPLOY.md`](./docs/HOSTINGER_DEPLOY.md)
+
 ### Deploy Steps
 
 1. Create the domain or subdomain in Hostinger hPanel.
