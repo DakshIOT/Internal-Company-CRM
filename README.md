@@ -9,6 +9,21 @@
 
 Laravel-based internal CRM for venue-scoped business operations. The application supports fixed employee roles, mandatory venue selection for employees, server-side totals, symbol-free money display, attachment handling, admin reports, and Excel exports.
 
+## About
+
+Internal Company CRM is built for one organization to manage venue-scoped operations through a clean admin and employee workflow. It is intentionally not a public SaaS product. The system focuses on strict access control, role-based visibility, server-side calculations, attachment handling, exports, and a responsive UI that works well on desktop and mobile.
+
+## About Us
+
+This repository represents an internal operations platform for company teams that manage:
+
+- venue-based work allocation
+- employee-specific service and package access
+- function-level financial tracking
+- daily income and billing ledgers
+- vendor handling for Employee Type B
+- admin reporting and Excel exports
+
 ## Highlights
 
 - Fixed roles: `admin`, `employee_a`, `employee_b`, `employee_c`
@@ -30,6 +45,19 @@ Laravel-based internal CRM for venue-scoped business operations. The application
 - Vite
 - MySQL / MariaDB
 - `maatwebsite/excel`
+
+## Codex Agents
+
+This project was planned and implemented with Codex agent guidance.
+
+- [`AGENTS.md`](./AGENTS.md) defines durable repo rules, business invariants, testing gates, UI discipline, and deployment constraints.
+- [`.agents/skills/architecture/SKILL.md`](./.agents/skills/architecture/SKILL.md) documents Laravel architecture and schema guardrails.
+- [`.agents/skills/premium-responsive-ui/SKILL.md`](./.agents/skills/premium-responsive-ui/SKILL.md) defines the responsive UI system and interaction expectations.
+- [`.agents/skills/auth-roles-venue-workflow/SKILL.md`](./.agents/skills/auth-roles-venue-workflow/SKILL.md) locks the role and venue-selection rules.
+- [`.agents/skills/reports-exports/SKILL.md`](./.agents/skills/reports-exports/SKILL.md) guides admin filters, totals, and workbook exports.
+- [`.agents/skills/qa-review/SKILL.md`](./.agents/skills/qa-review/SKILL.md) captures regression and release-readiness checks.
+
+If you continue this project with Codex, these files should remain the source of truth for implementation behavior and guardrails.
 
 ## Business Rules
 
@@ -156,7 +184,7 @@ Build production assets:
 npm run build
 ```
 
-## Deployment
+## Hostinger Deployment
 
 This project is designed to stay compatible with Hostinger Business shared hosting:
 
@@ -166,7 +194,86 @@ This project is designed to stay compatible with Hostinger Business shared hosti
 - standard Laravel filesystem usage
 - synchronous export support
 
-Use PHP `8.2` on Hostinger where available.
+Recommended production target:
+
+- PHP `8.2`
+- MySQL / MariaDB
+- SSH enabled
+
+### Deploy Steps
+
+1. Create the domain or subdomain in Hostinger hPanel.
+2. Create a production database and database user in hPanel.
+3. Set the site PHP version to `8.2`.
+4. Enable SSH access in hPanel.
+5. Upload the Laravel application above `public_html`, for example:
+
+```text
+/home/username/domains/yourdomain.com/crm-app
+```
+
+6. Copy the contents of Laravel `public/` into `public_html`.
+7. Update `public_html/index.php` so it points to the real app folder:
+
+```php
+require __DIR__.'/../crm-app/vendor/autoload.php';
+$app = require_once __DIR__.'/../crm-app/bootstrap/app.php';
+```
+
+8. Configure production `.env`:
+
+```env
+APP_NAME="Interior CRM"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://yourdomain.com
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=your_database
+DB_USERNAME=your_user
+DB_PASSWORD=your_password
+```
+
+9. Build assets locally before upload or on the server if Node is available:
+
+```bash
+npm install
+npm run build
+```
+
+10. SSH into Hostinger and run:
+
+```bash
+cd ~/domains/yourdomain.com/crm-app
+composer install --no-dev --optimize-autoloader
+php artisan key:generate
+php artisan migrate --seed --force
+php artisan storage:link
+php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+11. Fix writable directories if needed:
+
+```bash
+chmod -R 775 storage bootstrap/cache
+```
+
+12. Smoke test production:
+
+- admin login
+- employee login -> venue selection
+- function entry
+- daily income
+- daily billing
+- vendor entry for employee B
+- report filtering
+- Excel export
+- attachment preview and download
 
 ## Repository Guidance
 
