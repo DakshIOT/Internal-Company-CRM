@@ -1,8 +1,17 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <h1 class="font-display text-3xl font-semibold text-slate-950">{{ $roleLabel }} workspace</h1>
-            <p class="mt-2 text-sm leading-6 text-slate-600">{{ $headline }}</p>
+        <div class="crm-page-header">
+            <div class="crm-page-heading">
+                <p class="crm-section-title">Dashboard</p>
+                <h1 class="crm-page-title">{{ $roleLabel }} workspace</h1>
+                <p class="crm-page-description">{{ $headline }}</p>
+            </div>
+            <div class="crm-page-header-actions">
+                <span class="crm-chip bg-slate-950 text-white">{{ $venue->name }}</span>
+                <a href="{{ route('venues.select') }}" class="crm-button crm-button-secondary justify-center px-4 py-2.5 crm-print-hidden">
+                    Change venue
+                </a>
+            </div>
         </div>
     </x-slot>
 

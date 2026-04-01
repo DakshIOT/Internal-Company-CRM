@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Employee;
 
+use App\Exports\Reports\WorkbookExport;
 use App\Models\Attachment;
 use App\Models\DailyBillingEntry;
 use App\Models\DailyIncomeEntry;
@@ -11,6 +12,7 @@ use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
 class LedgerEntryTest extends TestCase
@@ -54,7 +56,7 @@ class LedgerEntryTest extends TestCase
                 'attachments' => [
                     UploadedFile::fake()->create('income-proof.pdf', 120, 'application/pdf'),
                 ],
-            ])->assertRedirect();
+            ])->assertRedirect(route('employee.daily-income.index'));
 
         $entry = DailyIncomeEntry::firstOrFail();
 
@@ -105,7 +107,7 @@ class LedgerEntryTest extends TestCase
                 'attachments' => [
                     UploadedFile::fake()->create('billing-proof.pdf', 120, 'application/pdf'),
                 ],
-            ])->assertRedirect();
+            ])->assertRedirect(route('employee.daily-billing.index'));
 
         $entry = DailyBillingEntry::firstOrFail();
 
@@ -175,7 +177,7 @@ class LedgerEntryTest extends TestCase
                 'attachments' => [
                     UploadedFile::fake()->create('lights.jpg', 80, 'image/jpeg'),
                 ],
-            ])->assertRedirect();
+            ])->assertRedirect(route('employee.vendor-entries.index'));
 
         $this->assertDatabaseHas('vendor_entries', [
             'venue_vendor_id' => $lights->id,
@@ -190,7 +192,7 @@ class LedgerEntryTest extends TestCase
                 'name' => 'Sound advance',
                 'amount' => '75.00',
                 'notes' => 'Vendor payment',
-            ])->assertRedirect();
+            ])->assertRedirect(route('employee.vendor-entries.index'));
 
         $entry = VendorEntry::query()->where('venue_vendor_id', $lights->id)->firstOrFail();
         $attachment = Attachment::query()
@@ -274,6 +276,136 @@ class LedgerEntryTest extends TestCase
             ->withSession(['selected_venue_id' => $venue->id])
             ->get(route('employee.daily-billing.edit', ['dailyBilling' => $entry]))
             ->assertForbidden();
+    }
+
+    public function test_ledger_indexes_paginate_after_fifty_entries_and_print_mode_shows_all_rows(): void
+    {
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        DailyIncomeEntry::factory()->count(51)->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-31',
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.daily-income.index'))
+            ->assertOk()
+            ->assertSee('?page=2', false);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.daily-income.index', ['print' => 1]))
+            ->assertOk()
+            ->assertSee('51 total entries');
+    }
+
+    public function test_employee_can_export_daily_income_and_billing_registers_to_excel(): void
+    {
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create(['name' => 'Sky Hall']);
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        DailyIncomeEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-31',
+            'name' => 'Income Row',
+            'amount_minor' => 12345,
+        ]);
+
+        DailyBillingEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-31',
+            'name' => 'Billing Row',
+            'amount_minor' => 67890,
+        ]);
+
+        Excel::fake();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.daily-income.export', ['entry_date' => '2026-03-31']))
+            ->assertOk();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.daily-billing.export', ['entry_date' => '2026-03-31']))
+            ->assertOk();
+
+        Excel::assertDownloaded('daily-income-register-export.xlsx', function ($export) {
+            $this->assertInstanceOf(WorkbookExport::class, $export);
+            $serialized = json_encode([$export->sheets()[0]->array(), $export->sheets()[1]->array()], JSON_THROW_ON_ERROR);
+            $this->assertStringNotContainsString('â‚¹', $serialized);
+            $this->assertStringNotContainsString('INR', $serialized);
+            $this->assertSame('Amount', $export->sheets()[0]->array()[9][0]);
+
+            return true;
+        });
+
+        Excel::assertDownloaded('daily-billing-register-export.xlsx', function ($export) {
+            $this->assertInstanceOf(WorkbookExport::class, $export);
+            $serialized = json_encode([$export->sheets()[0]->array(), $export->sheets()[1]->array()], JSON_THROW_ON_ERROR);
+            $this->assertStringNotContainsString('â‚¹', $serialized);
+            $this->assertStringNotContainsString('INR', $serialized);
+            $this->assertSame('Entry Date', $export->sheets()[1]->array()[0][0]);
+
+            return true;
+        });
+    }
+
+    public function test_employee_b_can_export_vendor_register_to_excel_with_vendor_totals(): void
+    {
+        $employee = User::factory()->employeeB()->create();
+        $venue = Venue::factory()->create(['name' => 'Lake View']);
+        $venue->syncVendorSlots([
+            1 => 'Vendor One',
+            2 => 'Vendor Two',
+            3 => 'Vendor Three',
+            4 => 'Vendor Four',
+        ]);
+        $venue->load('vendors');
+        $vendor = $venue->vendors->firstWhere('slot_number', 1);
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        VendorEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'venue_vendor_id' => $vendor->id,
+            'vendor_name_snapshot' => 'Vendor One',
+            'entry_date' => '2026-03-31',
+            'name' => 'Vendor Row',
+            'amount_minor' => 50500,
+        ]);
+
+        Excel::fake();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.vendor-entries.export', ['venue_vendor_id' => $vendor->id]))
+            ->assertOk();
+
+        Excel::assertDownloaded('vendor-register-export.xlsx', function ($export) {
+            $this->assertInstanceOf(WorkbookExport::class, $export);
+            $this->assertCount(4, $export->sheets());
+
+            $serialized = json_encode([
+                $export->sheets()[0]->array(),
+                $export->sheets()[1]->array(),
+                $export->sheets()[2]->array(),
+                $export->sheets()[3]->array(),
+            ], JSON_THROW_ON_ERROR);
+
+            $this->assertStringNotContainsString('â‚¹', $serialized);
+            $this->assertStringNotContainsString('Rs', $serialized);
+            $this->assertSame('Vendor', $export->sheets()[3]->array()[0][0]);
+
+            return true;
+        });
     }
 
     private function assignEmployeeToVenue(User $employee, Venue $venue): void

@@ -2,7 +2,7 @@
     $user = auth()->user();
 @endphp
 
-<header class="sticky top-0 z-30 border-b border-white/50 bg-white/88 backdrop-blur-xl">
+<header class="relative z-30 border-b border-white/50 bg-white/88 backdrop-blur-xl sm:sticky sm:top-0">
     <div class="crm-shell-header px-3 py-3 sm:px-6 lg:px-8 xl:px-10">
         <div class="flex min-w-0 items-start gap-3">
             <button
@@ -35,11 +35,7 @@
                 </div>
             @endif
 
-            @if ($user?->isEmployee())
-                <div class="hidden sm:block">
-                    <livewire:access.venue-switcher />
-                </div>
-            @else
+            @if (! $user?->isEmployee())
                 <div class="hidden sm:inline-flex">
                     <span class="crm-chip bg-slate-950 text-white">Global Admin Context</span>
                 </div>
@@ -48,20 +44,29 @@
                 </div>
             @endif
 
-            <div class="hidden rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm md:block">
-                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Signed in as</p>
-                <p class="mt-1 text-sm font-semibold text-slate-800">{{ $user?->name }}</p>
-            </div>
+            @if (! $user?->isEmployee())
+                <div class="hidden rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm md:block">
+                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Signed in as</p>
+                    <p class="mt-1 text-sm font-semibold text-slate-800">{{ $user?->name }}</p>
+                </div>
 
-            <div class="max-w-[8.5rem] truncate rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 md:hidden">
-                {{ $user?->name }}
-            </div>
+                <div class="max-w-[8.5rem] truncate rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 md:hidden">
+                    {{ $user?->name }}
+                </div>
+            @endif
         </div>
     </div>
 
     @if ($user?->isEmployee())
-        <div class="border-t border-slate-100 px-3 py-2.5 sm:hidden">
-            <livewire:access.venue-switcher />
+        <div class="border-t border-slate-100/90 px-3 py-3 sm:px-6 lg:px-8 xl:px-10">
+            <div class="crm-employee-topbar">
+                <livewire:access.venue-switcher />
+
+                <div class="crm-identity-card">
+                    <p class="crm-identity-role">{{ $user->roleLabel() }}</p>
+                    <p class="crm-identity-name">{{ $user->name }}</p>
+                </div>
+            </div>
         </div>
     @endif
 </header>

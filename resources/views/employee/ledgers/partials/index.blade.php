@@ -1,24 +1,37 @@
 @php
     use App\Support\Money;
+    use Illuminate\Contracts\Pagination\Paginator;
 
-    $pageGroups = $entries->getCollection()->groupBy(fn ($entry) => optional($entry->entry_date)->toDateString());
+    $entryCollection = $entries instanceof Paginator ? collect($entries->items()) : collect($entries);
+    $pageGroups = $entryCollection->groupBy(fn ($entry) => optional($entry->entry_date)->toDateString());
+    $entryTotal = $entries instanceof Paginator ? $entries->total() : $entryCollection->count();
     $showVendors = ! empty($vendorOptions) && count($vendorOptions);
     $colspan = $showVendors ? 7 : 6;
+    $printQuery = array_filter([
+        'search' => $filters['search'] ?? null,
+        'entry_date' => $filters['entry_date'] ?? null,
+        'venue_vendor_id' => $filters['venue_vendor_id'] ?? null,
+        'print' => 1,
+    ], fn ($value) => ! is_null($value) && $value !== '');
+    $exportQuery = array_filter([
+        'search' => $filters['search'] ?? null,
+        'entry_date' => $filters['entry_date'] ?? null,
+        'venue_vendor_id' => $filters['venue_vendor_id'] ?? null,
+    ], fn ($value) => ! is_null($value) && $value !== '');
 @endphp
 
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-            <div>
+        <div class="crm-page-header">
+            <div class="crm-page-heading">
                 <p class="crm-section-title">{{ $moduleLabel }}</p>
-                <h1 class="mt-1 font-display text-2xl font-semibold text-slate-950 sm:text-3xl">{{ $moduleLabel }}</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{{ $moduleDescription }}</p>
+                <h1 class="crm-page-title">{{ $isPrint ? $moduleLabel.' Print View' : $moduleLabel }}</h1>
+                <p class="crm-page-description">{{ $isPrint ? 'Full filtered register prepared for printing.' : $moduleDescription }}</p>
             </div>
-            <div class="flex flex-wrap gap-2 crm-print-hidden">
+            <div class="crm-page-header-actions crm-print-hidden">
                 <span class="crm-chip bg-slate-950 text-white">{{ $currentVenue->name }}</span>
-                <button type="button" onclick="window.print()" class="crm-button crm-button-secondary justify-center px-4 py-2.5">
-                    Print current view
-                </button>
+                <a href="{{ route($indexRoute, $printQuery) }}" target="_blank" class="crm-button crm-button-secondary justify-center px-4 py-2.5">Print full list</a>
+                <a href="{{ route(str_replace('.index', '.export', $indexRoute), $exportQuery) }}" class="crm-button crm-button-secondary justify-center px-4 py-2.5">Export Excel</a>
                 <a href="{{ route($createRoute) }}" class="crm-button crm-button-primary justify-center px-4 py-2.5">Add entry</a>
             </div>
         </div>
@@ -85,7 +98,7 @@
                     <p class="crm-section-title">{{ $moduleLabel }}</p>
                     <h2 class="mt-1 text-lg font-semibold text-slate-950">Date-wise table</h2>
                 </div>
-                <span class="text-sm text-slate-500">{{ $entries->total() }} total entries</span>
+                <span class="text-sm text-slate-500">{{ $entryTotal }} total entries</span>
             </div>
 
             <div class="crm-table-wrap rounded-none border-0">
@@ -118,10 +131,7 @@
                                     <td>{{ $entry->attachments_count }}</td>
                                     <td>{{ Money::formatMinor($entry->amount_minor) }}</td>
                                     <td class="crm-print-hidden">
-                                        <div class="flex flex-wrap gap-2">
-                                            <a href="{{ route($editRoute, $entry) }}" class="crm-button crm-button-primary px-4 py-2">Open</a>
-                                            <button type="button" onclick="window.print()" class="crm-button crm-button-secondary px-4 py-2">Print</button>
-                                        </div>
+                                        <a href="{{ route($editRoute, $entry) }}" class="crm-button crm-button-primary px-4 py-2">Open</a>
                                     </td>
                                 </tr>
                             @endforeach
@@ -153,6 +163,18 @@
             </div>
         </section>
 
-        {{ $entries->links() }}
+        @if ($entries instanceof Paginator && $entries->hasPages())
+            <div class="crm-print-hidden">
+                {{ $entries->links() }}
+            </div>
+        @endif
     </div>
+
+    @if ($isPrint)
+        <script>
+            window.addEventListener('load', function () {
+                window.print();
+            });
+        </script>
+    @endif
 </x-app-layout>

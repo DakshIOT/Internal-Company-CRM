@@ -82,7 +82,7 @@
     }
 
     .crm-shell-header {
-        @apply flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between;
+        @apply flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between;
     }
 
     .crm-shell-header-copy {
@@ -90,7 +90,7 @@
     }
 
     .crm-shell-header-copy h1 {
-        @apply mt-1 font-display text-[1.75rem] font-semibold leading-tight text-slate-950 sm:text-3xl;
+        @apply mt-1 font-display text-[1.65rem] font-semibold leading-tight text-slate-950 sm:text-[2rem];
     }
 
     .crm-shell-header-copy p:not(.crm-section-title) {
@@ -98,7 +98,63 @@
     }
 
     .crm-shell-header-actions {
-        @apply flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end;
+        @apply flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end;
+    }
+
+    .crm-employee-topbar {
+        @apply grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center;
+    }
+
+    .crm-context-switcher {
+        @apply rounded-[1.35rem] border border-slate-200/80 bg-white/90 px-3.5 py-3 shadow-sm;
+    }
+
+    .crm-context-switcher-form {
+        @apply flex flex-col gap-2 lg:flex-row lg:items-center;
+    }
+
+    .crm-context-switcher-label {
+        @apply text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-slate-500 lg:min-w-[6rem];
+    }
+
+    .crm-context-switcher-controls {
+        @apply flex flex-col gap-2 sm:flex-row sm:items-center;
+    }
+
+    .crm-identity-card {
+        @apply inline-flex min-w-[10.5rem] flex-col rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3 text-left shadow-sm lg:justify-self-end;
+    }
+
+    .crm-identity-role {
+        @apply text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500;
+    }
+
+    .crm-identity-name {
+        @apply mt-1 text-sm font-semibold text-slate-900;
+    }
+
+    .crm-page-header {
+        @apply flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between;
+    }
+
+    .crm-page-heading {
+        @apply min-w-0;
+    }
+
+    .crm-page-title {
+        @apply mt-1 font-display text-[1.9rem] font-semibold leading-tight text-slate-950 sm:text-[2.2rem];
+    }
+
+    .crm-page-description {
+        @apply mt-2 max-w-2xl text-sm leading-6 text-slate-600;
+    }
+
+    .crm-page-header-actions {
+        @apply flex flex-wrap items-center gap-2 xl:justify-end;
+    }
+
+    .crm-page-header-actions .crm-button {
+        @apply min-h-[2.75rem];
     }
 
     .crm-button {
@@ -262,7 +318,7 @@
         }
 
         .crm-shell-header-copy h1 {
-            @apply text-[1.9rem];
+            @apply text-[1.65rem];
         }
 
         .crm-shell-header-actions .crm-button {
@@ -271,6 +327,26 @@
 
         .crm-toolbar .crm-button {
             @apply w-full justify-center;
+        }
+
+        .crm-page-header-actions {
+            @apply grid w-full grid-cols-1;
+        }
+
+        .crm-page-title {
+            @apply text-[1.7rem];
+        }
+
+        .crm-identity-card {
+            @apply w-full min-w-0;
+        }
+
+        .crm-context-switcher {
+            @apply px-3 py-2.5;
+        }
+
+        .crm-context-switcher-label {
+            @apply text-[0.62rem];
         }
     }
 }

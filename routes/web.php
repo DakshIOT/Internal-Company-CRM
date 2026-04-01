@@ -100,6 +100,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
         Route::get('/dashboard', EmployeeDashboardController::class)->name('dashboard');
 
         Route::middleware('role:employee_a,employee_b')->group(function () {
+            Route::get('/daily-income/export', [DailyIncomeEntryController::class, 'export'])
+                ->name('daily-income.export');
             Route::resource('daily-income', DailyIncomeEntryController::class)
                 ->parameters(['daily-income' => 'dailyIncome']);
             Route::get('/daily-income/{dailyIncome}/attachments/{attachment}/preview', [DailyIncomeEntryController::class, 'preview'])
@@ -109,6 +111,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
             Route::delete('/daily-income/{dailyIncome}/attachments/{attachment}', [DailyIncomeEntryController::class, 'destroyAttachment'])
                 ->name('daily-income.attachments.destroy');
 
+            Route::get('/daily-billing/export', [DailyBillingEntryController::class, 'export'])
+                ->name('daily-billing.export');
             Route::resource('daily-billing', DailyBillingEntryController::class)
                 ->parameters(['daily-billing' => 'dailyBilling']);
             Route::get('/daily-billing/{dailyBilling}/attachments/{attachment}/preview', [DailyBillingEntryController::class, 'preview'])
@@ -120,6 +124,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
         });
 
         Route::middleware('role:employee_b')->group(function () {
+            Route::get('/vendor-entries/export', [VendorEntryController::class, 'export'])
+                ->name('vendor-entries.export');
             Route::resource('vendor-entries', VendorEntryController::class)
                 ->parameters(['vendor-entries' => 'vendorEntry']);
             Route::put('/vendor-entries/vendors/{venueVendor}', [VendorEntryController::class, 'updateVendorName'])
@@ -132,6 +138,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
                 ->name('vendor-entries.attachments.destroy');
         });
 
+        Route::get('/functions/export', [FunctionEntryController::class, 'export'])
+            ->name('functions.export');
         Route::resource('functions', FunctionEntryController::class)
             ->parameters(['functions' => 'functionEntry']);
         Route::post('/functions/{functionEntry}/packages', [FunctionPackageController::class, 'store'])

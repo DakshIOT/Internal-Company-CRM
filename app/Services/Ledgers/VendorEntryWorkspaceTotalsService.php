@@ -36,7 +36,12 @@ class VendorEntryWorkspaceTotalsService extends LedgerWorkspaceTotalsService
                 'entry_count' => (int) ($row->entry_count ?? 0),
                 'amount_minor' => (int) ($row->amount_minor ?? 0),
             ];
-        });
+            });
+    }
+
+    public function vendorTotalsFromQuery(Builder $query): Collection
+    {
+        return $this->vendorTotals($query);
     }
 
     protected function vendorTotals(Builder $query): Collection

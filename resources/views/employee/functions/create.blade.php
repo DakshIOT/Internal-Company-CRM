@@ -1,14 +1,14 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+        <div class="crm-page-header">
+            <div class="crm-page-heading">
                 <p class="crm-section-title">Function Entry</p>
-                <h1 class="mt-1 font-display text-2xl font-semibold text-slate-950 sm:text-3xl">Create Function Entry</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                <h1 class="crm-page-title">Create Function Entry</h1>
+                <p class="crm-page-description">
                     Start with the base details only. After save, choose the section you want from the action menu.
                 </p>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="crm-page-header-actions">
                 <span class="crm-chip bg-slate-950 text-white">{{ $currentVenue->name }}</span>
                 <button type="button" onclick="window.print()" class="crm-button crm-button-secondary justify-center px-4 py-2 crm-print-hidden">
                     Print page

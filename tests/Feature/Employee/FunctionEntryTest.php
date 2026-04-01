@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Employee;
 
+use App\Exports\Reports\WorkbookExport;
 use App\Models\Attachment;
 use App\Models\FunctionEntry;
 use App\Models\FunctionExtraCharge;
@@ -12,6 +13,7 @@ use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
 class FunctionEntryTest extends TestCase
@@ -39,7 +41,7 @@ class FunctionEntryTest extends TestCase
 
         $functionEntry = FunctionEntry::firstOrFail();
 
-        $response->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'packages']));
+        $response->assertRedirect(route('employee.functions.index'));
 
         $this->assertDatabaseHas('function_entries', [
             'id' => $functionEntry->id,
@@ -254,6 +256,79 @@ class FunctionEntryTest extends TestCase
             ->withSession(['selected_venue_id' => $venue->id])
             ->get(route('employee.functions.attachments.download', [$functionEntry, $attachment]))
             ->assertOk();
+    }
+
+    public function test_function_index_paginates_after_fifty_entries_but_print_mode_shows_all_filtered_rows(): void
+    {
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        FunctionEntry::factory()->count(51)->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-30',
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.index'))
+            ->assertOk()
+            ->assertSee('?page=2', false);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.index', ['print' => 1]))
+            ->assertOk()
+            ->assertSee('51 total entries');
+    }
+
+    public function test_employee_can_export_function_register_to_excel_without_currency_symbols(): void
+    {
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create(['name' => 'Garden Court']);
+        $this->assignEmployeeToVenue($employee, $venue, 10000);
+
+        FunctionEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-30',
+            'name' => 'March Function',
+            'function_total_minor' => 25000,
+            'paid_total_minor' => 10000,
+            'pending_total_minor' => 15000,
+            'frozen_fund_minor' => 10000,
+            'net_total_after_frozen_fund_minor' => 15000,
+        ]);
+
+        Excel::fake();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.export', ['entry_date' => '2026-03-30']))
+            ->assertOk();
+
+        Excel::assertDownloaded('function-register-export.xlsx', function ($export) {
+            $this->assertInstanceOf(WorkbookExport::class, $export);
+
+            $sheets = $export->sheets();
+            $this->assertCount(3, $sheets);
+
+            $serialized = json_encode([
+                $sheets[0]->array(),
+                $sheets[1]->array(),
+                $sheets[2]->array(),
+            ], JSON_THROW_ON_ERROR);
+
+            $this->assertStringNotContainsString('â‚¹', $serialized);
+            $this->assertStringNotContainsString('Rs', $serialized);
+            $this->assertStringNotContainsString('INR', $serialized);
+            $this->assertStringNotContainsString('USD', $serialized);
+            $this->assertSame('Function Total', $sheets[0]->array()[7][0]);
+            $this->assertSame('Entry Date', $sheets[1]->array()[0][0]);
+
+            return true;
+        });
     }
 
     private function assignEmployeeToVenue(User $employee, Venue $venue, int $frozenFundMinor = 0): void

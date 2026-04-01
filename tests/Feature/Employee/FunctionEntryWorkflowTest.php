@@ -56,7 +56,7 @@ class FunctionEntryWorkflowTest extends TestCase
                 ],
             ]);
 
-        $response->assertRedirect();
+        $response->assertRedirect(route('employee.functions.index'));
 
         $functionEntry = FunctionEntry::query()->firstOrFail();
 
@@ -70,7 +70,7 @@ class FunctionEntryWorkflowTest extends TestCase
             ->post(route('employee.functions.packages.store', $functionEntry), [
                 'package_id' => $package->id,
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'packages']));
 
         $functionPackage = FunctionPackage::query()->firstOrFail();
         $serviceLine = $functionPackage->serviceLines()->firstOrFail();
@@ -88,7 +88,7 @@ class FunctionEntryWorkflowTest extends TestCase
                     ],
                 ],
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'packages']));
 
         $this->actingAs($employee)
             ->withSession(['selected_venue_id' => $venue->id])
@@ -102,7 +102,7 @@ class FunctionEntryWorkflowTest extends TestCase
                     UploadedFile::fake()->create('generator.pdf', 100, 'application/pdf'),
                 ],
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'extra-charges']));
 
         $this->actingAs($employee)
             ->withSession(['selected_venue_id' => $venue->id])
@@ -113,7 +113,7 @@ class FunctionEntryWorkflowTest extends TestCase
                 'amount' => '200.00',
                 'note' => 'Advance received',
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'installments']));
 
         $this->actingAs($employee)
             ->withSession(['selected_venue_id' => $venue->id])
@@ -124,7 +124,7 @@ class FunctionEntryWorkflowTest extends TestCase
                 'amount' => '75.00',
                 'note' => 'Referral discount',
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'discounts']));
 
         $functionEntry->refresh();
 

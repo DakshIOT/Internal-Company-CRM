@@ -2,26 +2,33 @@
 
 namespace App\Http\Controllers\Employee\Ledgers;
 
+use App\Exports\Reports\WorkbookExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Employee\Ledgers\VendorEntryRequest;
 use App\Models\Attachment;
 use App\Models\VendorEntry;
 use App\Models\VenueVendor;
+use App\Services\Exports\EmployeeRegisterExportService;
 use App\Services\Files\AttachmentService;
 use App\Services\Ledgers\VendorEntryWorkspaceTotalsService;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class VendorEntryController extends Controller
 {
     public function __construct(
         private VendorEntryWorkspaceTotalsService $totalsService,
         private AttachmentService $attachmentService,
+        private EmployeeRegisterExportService $exportService,
     ) {
     }
 
@@ -33,38 +40,60 @@ class VendorEntryController extends Controller
         $venueId = $this->selectedVenueId($request);
         $venue = $user->venues()->whereKey($venueId)->with('vendors')->firstOrFail();
 
-        $query = VendorEntry::query()
-            ->forWorkspace($user, $venueId)
+        $date = $request->string('entry_date')->value();
+        $orderedQuery = $this->indexQuery($request)
             ->with('venueVendor')
-            ->withCount('attachments');
-
-        if ($search = trim((string) $request->string('search'))) {
-            $query->where(function ($builder) use ($search) {
-                $builder
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('notes', 'like', "%{$search}%")
-                    ->orWhere('vendor_name_snapshot', 'like', "%{$search}%")
-                    ->orWhereHas('venueVendor', function ($vendorQuery) use ($search) {
-                        $vendorQuery->where('name', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        if ($date = $request->string('entry_date')->value()) {
-            $query->whereDate('entry_date', $date);
-        }
-
-        if ($vendorId = $request->integer('venue_vendor_id')) {
-            $query->where('venue_vendor_id', $vendorId);
-        }
+            ->withCount('attachments')
+            ->orderByDesc('entry_date')
+            ->orderByDesc('id');
+        $printMode = $request->boolean('print');
+        $entries = $printMode
+            ? $orderedQuery->get()
+            : $orderedQuery->paginate(50)->withQueryString();
 
         return view('employee.ledgers.vendor-entries.index', [
             'currentVenue' => $venue,
-            'entries' => $query->orderByDesc('entry_date')->orderByDesc('id')->paginate(12)->withQueryString(),
+            'entries' => $entries,
             'filters' => $request->only(['search', 'entry_date', 'venue_vendor_id']),
+            'isPrint' => $printMode,
             'vendorTotals' => $this->totalsService->vendorTotalsForUserVenue($user, $venue),
             'workspaceTotals' => $this->totalsService->forEmployeeVenue(VendorEntry::class, $user, $venueId, $date ?? null),
         ]);
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        $this->authorize('viewAny', VendorEntry::class);
+
+        $user = $request->user();
+        $venueId = $this->selectedVenueId($request);
+        $venue = $user->venues()->whereKey($venueId)->with('vendors')->firstOrFail();
+        $query = $this->indexQuery($request);
+
+        $entries = (clone $query)
+            ->withCount('attachments')
+            ->orderByDesc('entry_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $summary = $this->exportSummary(clone $query);
+        $dateTotals = $this->exportDateTotals(clone $query);
+        $vendorTotals = $this->totalsService->vendorTotalsFromQuery(clone $query);
+
+        return Excel::download(
+            new WorkbookExport($this->exportService->amountSheets(
+                $user,
+                $venue,
+                $request->only(['search', 'entry_date', 'venue_vendor_id']),
+                $entries,
+                $summary,
+                $dateTotals,
+                'Vendor Entry',
+                true,
+                $vendorTotals
+            )),
+            'vendor-register-export.xlsx'
+        );
     }
 
     public function create(Request $request): View
@@ -113,7 +142,7 @@ class VendorEntryController extends Controller
         });
 
         return redirect()
-            ->route('employee.vendor-entries.edit', $entry)
+            ->route('employee.vendor-entries.index')
             ->with('status', 'Vendor entry created.');
     }
 
@@ -188,7 +217,7 @@ class VendorEntryController extends Controller
         });
 
         return redirect()
-            ->route('employee.vendor-entries.edit', $vendorEntry)
+            ->route('employee.vendor-entries.index')
             ->with('status', 'Vendor entry updated.');
     }
 
@@ -268,6 +297,65 @@ class VendorEntryController extends Controller
         }
 
         return $vendor;
+    }
+
+    private function indexQuery(Request $request): Builder
+    {
+        $query = VendorEntry::query()
+            ->forWorkspace($request->user(), $this->selectedVenueId($request));
+
+        if ($search = trim((string) $request->string('search'))) {
+            $query->where(function ($builder) use ($search) {
+                $builder
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhere('vendor_name_snapshot', 'like', "%{$search}%")
+                    ->orWhereHas('venueVendor', function ($vendorQuery) use ($search) {
+                        $vendorQuery->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($date = $request->string('entry_date')->value()) {
+            $query->whereDate('entry_date', $date);
+        }
+
+        if ($vendorId = $request->integer('venue_vendor_id')) {
+            $query->where('venue_vendor_id', $vendorId);
+        }
+
+        return $query;
+    }
+
+    private function exportSummary(Builder $query): array
+    {
+        $summary = $query
+            ->selectRaw('COUNT(*) as entry_count')
+            ->selectRaw('COALESCE(SUM(amount_minor), 0) as amount_minor')
+            ->first();
+
+        return [
+            'entry_count' => (int) ($summary->entry_count ?? 0),
+            'amount_minor' => (int) ($summary->amount_minor ?? 0),
+        ];
+    }
+
+    private function exportDateTotals(Builder $query)
+    {
+        return $query
+            ->selectRaw('entry_date, COUNT(*) as entry_count, COALESCE(SUM(amount_minor), 0) as amount_minor')
+            ->groupBy('entry_date')
+            ->orderByDesc('entry_date')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'entry_date' => $row->entry_date instanceof Carbon
+                        ? $row->entry_date->toDateString()
+                        : Carbon::parse($row->entry_date)->toDateString(),
+                    'entry_count' => (int) $row->entry_count,
+                    'amount_minor' => (int) $row->amount_minor,
+                ];
+            });
     }
 
     private function selectedVenueId(Request $request): int

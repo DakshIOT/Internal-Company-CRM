@@ -2,17 +2,23 @@
 
 namespace App\Http\Controllers\Employee\Functions;
 
+use App\Exports\Reports\WorkbookExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Employee\Functions\FunctionEntryRequest;
 use App\Models\FunctionEntry;
 use App\Models\Package;
+use App\Services\Exports\EmployeeRegisterExportService;
 use App\Services\Files\AttachmentService;
 use App\Services\Functions\FunctionEntryTotalsService;
 use App\Services\Functions\FunctionEntryWorkspaceTotalsService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FunctionEntryController extends Controller
 {
@@ -20,6 +26,7 @@ class FunctionEntryController extends Controller
         private FunctionEntryTotalsService $totalsService,
         private FunctionEntryWorkspaceTotalsService $workspaceTotalsService,
         private AttachmentService $attachmentService,
+        private EmployeeRegisterExportService $exportService,
     ) {
     }
 
@@ -31,28 +38,50 @@ class FunctionEntryController extends Controller
         $venueId = $this->selectedVenueId($request);
         $venue = $user->venues()->whereKey($venueId)->firstOrFail();
 
-        $query = FunctionEntry::query()
-            ->forWorkspace($user, $venueId)
-            ->withCount(['packages', 'extraCharges', 'installments', 'discounts', 'attachments']);
-
-        if ($search = trim((string) $request->string('search'))) {
-            $query->where(function ($builder) use ($search) {
-                $builder
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('notes', 'like', "%{$search}%");
-            });
-        }
-
-        if ($date = $request->string('entry_date')->value()) {
-            $query->whereDate('entry_date', $date);
-        }
+        $orderedQuery = $this->indexQuery($request)->orderByDesc('entry_date')->orderByDesc('id');
+        $printMode = $request->boolean('print');
+        $entries = $printMode
+            ? $orderedQuery->get()
+            : $orderedQuery->paginate(50)->withQueryString();
 
         return view('employee.functions.index', [
             'currentVenue' => $venue,
-            'entries' => $query->orderByDesc('entry_date')->orderByDesc('id')->paginate(12)->withQueryString(),
+            'entries' => $entries,
             'filters' => $request->only(['search', 'entry_date']),
+            'isPrint' => $printMode,
             'workspaceTotals' => $this->workspaceTotalsService->forUserVenue($user, $venueId),
         ]);
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        $this->authorize('viewAny', FunctionEntry::class);
+
+        $user = $request->user();
+        $venueId = $this->selectedVenueId($request);
+        $venue = $user->venues()->whereKey($venueId)->firstOrFail();
+        $query = $this->indexQuery($request);
+
+        $entries = (clone $query)
+            ->withCount(['packages', 'extraCharges', 'installments', 'discounts', 'attachments'])
+            ->orderByDesc('entry_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $summary = $this->exportSummary(clone $query);
+        $dateTotals = $this->exportDateTotals(clone $query);
+
+        return Excel::download(
+            new WorkbookExport($this->exportService->functionSheets(
+                $user,
+                $venue,
+                $request->only(['search', 'entry_date']),
+                $entries,
+                $summary,
+                $dateTotals
+            )),
+            'function-register-export.xlsx'
+        );
     }
 
     public function create(Request $request): View
@@ -90,8 +119,8 @@ class FunctionEntryController extends Controller
         });
 
         return redirect()
-            ->route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'packages'])
-            ->with('status', 'Function entry created. Continue in the action center.');
+            ->route('employee.functions.index')
+            ->with('status', 'Function entry created. Open it from the list to continue in the action menu.');
     }
 
     public function show(Request $request, FunctionEntry $functionEntry): View
@@ -160,7 +189,7 @@ class FunctionEntryController extends Controller
         });
 
         return redirect()
-            ->route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'packages'])
+            ->route('employee.functions.index')
             ->with('status', 'Function entry details updated.');
     }
 
@@ -193,6 +222,73 @@ class FunctionEntryController extends Controller
     {
         $this->authorize($ability, $functionEntry);
         abort_unless((int) $functionEntry->venue_id === $this->selectedVenueId($request), 404);
+    }
+
+    private function indexQuery(Request $request): Builder
+    {
+        $query = FunctionEntry::query()
+            ->forWorkspace($request->user(), $this->selectedVenueId($request));
+
+        if ($search = trim((string) $request->string('search'))) {
+            $query->where(function ($builder) use ($search) {
+                $builder
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%");
+            });
+        }
+
+        if ($date = $request->string('entry_date')->value()) {
+            $query->whereDate('entry_date', $date);
+        }
+
+        return $query;
+    }
+
+    private function exportSummary(Builder $query): array
+    {
+        $totals = $query->selectRaw('COUNT(*) as entry_count')
+            ->selectRaw('COALESCE(SUM(function_total_minor), 0) as function_total_minor')
+            ->selectRaw('COALESCE(SUM(paid_total_minor), 0) as paid_total_minor')
+            ->selectRaw('COALESCE(SUM(pending_total_minor), 0) as pending_total_minor')
+            ->selectRaw('COALESCE(SUM(frozen_fund_minor), 0) as frozen_fund_minor')
+            ->selectRaw('COALESCE(SUM(net_total_after_frozen_fund_minor), 0) as net_total_after_frozen_fund_minor')
+            ->first();
+
+        return [
+            'entry_count' => (int) ($totals->entry_count ?? 0),
+            'function_total_minor' => (int) ($totals->function_total_minor ?? 0),
+            'paid_total_minor' => (int) ($totals->paid_total_minor ?? 0),
+            'pending_total_minor' => (int) ($totals->pending_total_minor ?? 0),
+            'frozen_fund_minor' => (int) ($totals->frozen_fund_minor ?? 0),
+            'net_total_after_frozen_fund_minor' => (int) ($totals->net_total_after_frozen_fund_minor ?? 0),
+        ];
+    }
+
+    private function exportDateTotals(Builder $query)
+    {
+        return $query
+            ->selectRaw('entry_date, COUNT(*) as entry_count')
+            ->selectRaw('COALESCE(SUM(function_total_minor), 0) as function_total_minor')
+            ->selectRaw('COALESCE(SUM(paid_total_minor), 0) as paid_total_minor')
+            ->selectRaw('COALESCE(SUM(pending_total_minor), 0) as pending_total_minor')
+            ->selectRaw('COALESCE(SUM(frozen_fund_minor), 0) as frozen_fund_minor')
+            ->selectRaw('COALESCE(SUM(net_total_after_frozen_fund_minor), 0) as net_total_after_frozen_fund_minor')
+            ->groupBy('entry_date')
+            ->orderByDesc('entry_date')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'entry_date' => $row->entry_date instanceof Carbon
+                        ? $row->entry_date->toDateString()
+                        : Carbon::parse($row->entry_date)->toDateString(),
+                    'entry_count' => (int) $row->entry_count,
+                    'function_total_minor' => (int) $row->function_total_minor,
+                    'paid_total_minor' => (int) $row->paid_total_minor,
+                    'pending_total_minor' => (int) $row->pending_total_minor,
+                    'frozen_fund_minor' => (int) $row->frozen_fund_minor,
+                    'net_total_after_frozen_fund_minor' => (int) $row->net_total_after_frozen_fund_minor,
+                ];
+            });
     }
 
     private function selectedVenueId(Request $request): int

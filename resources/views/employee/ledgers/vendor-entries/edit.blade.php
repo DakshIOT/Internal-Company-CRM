@@ -1,14 +1,14 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
+        <div class="crm-page-header">
+            <div class="crm-page-heading">
                 <p class="crm-section-title">Vendor Entry</p>
-                <h1 class="mt-2 font-display text-3xl font-semibold text-slate-950">{{ $entry->name }}</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                <h1 class="crm-page-title">{{ $entry->name }}</h1>
+                <p class="crm-page-description">
                     Adjust the vendor slot, amount, notes, and file set while keeping totals visible for the current venue.
                 </p>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="crm-page-header-actions">
                 <span class="crm-chip bg-slate-950 text-white">{{ $currentVenue->name }}</span>
                 @if ($entry->venueVendor)
                     <span class="crm-chip bg-cyan-50 text-cyan-700">{{ $entry->venueVendor->name }}</span>

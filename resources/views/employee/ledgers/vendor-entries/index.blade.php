@@ -1,25 +1,38 @@
 @php
     use App\Support\Money;
+    use Illuminate\Contracts\Pagination\Paginator;
 
-    $pageGroups = $entries->getCollection()->groupBy(fn ($entry) => optional($entry->entry_date)->toDateString());
+    $entryCollection = $entries instanceof Paginator ? collect($entries->items()) : collect($entries);
+    $pageGroups = $entryCollection->groupBy(fn ($entry) => optional($entry->entry_date)->toDateString());
+    $entryTotal = $entries instanceof Paginator ? $entries->total() : $entryCollection->count();
     $renameVendorRouteTemplate = route('employee.vendor-entries.vendors.update', ['venueVendor' => '__VENDOR__']);
+    $printQuery = array_filter([
+        'search' => $filters['search'] ?? null,
+        'entry_date' => $filters['entry_date'] ?? null,
+        'venue_vendor_id' => $filters['venue_vendor_id'] ?? null,
+        'print' => 1,
+    ], fn ($value) => ! is_null($value) && $value !== '');
+    $exportQuery = array_filter([
+        'search' => $filters['search'] ?? null,
+        'entry_date' => $filters['entry_date'] ?? null,
+        'venue_vendor_id' => $filters['venue_vendor_id'] ?? null,
+    ], fn ($value) => ! is_null($value) && $value !== '');
 @endphp
 
 <x-app-layout>
     <x-slot name="header">
-        <div class="crm-toolbar">
-            <div>
+        <div class="crm-page-header">
+            <div class="crm-page-heading">
                 <p class="crm-section-title">Vendor Entry</p>
-                <h1 class="mt-2 font-display text-3xl font-semibold text-slate-950">Vendor Register</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    Track the four current-venue vendor slots, rename them when needed, and keep vendor-wise plus date-wise totals visible.
+                <h1 class="crm-page-title">{{ $isPrint ? 'Vendor Register Print View' : 'Vendor Register' }}</h1>
+                <p class="crm-page-description">
+                    {{ $isPrint ? 'Full filtered register prepared for printing.' : 'Track the four current-venue vendor slots, rename them when needed, and keep vendor-wise plus date-wise totals visible.' }}
                 </p>
             </div>
-            <div class="flex flex-wrap gap-2 crm-print-hidden">
+            <div class="crm-page-header-actions crm-print-hidden">
                 <span class="crm-chip bg-slate-950 text-white">{{ $currentVenue->name }}</span>
-                <button type="button" onclick="window.print()" class="crm-button crm-button-secondary justify-center px-4 py-2.5">
-                    Print current view
-                </button>
+                <a href="{{ route('employee.vendor-entries.index', $printQuery) }}" target="_blank" class="crm-button crm-button-secondary justify-center px-4 py-2.5">Print full list</a>
+                <a href="{{ route('employee.vendor-entries.export', $exportQuery) }}" class="crm-button crm-button-secondary justify-center px-4 py-2.5">Export Excel</a>
                 <a href="{{ route('employee.vendor-entries.create') }}" class="crm-button crm-button-primary justify-center px-4 py-2.5">
                     Add entry
                 </a>
@@ -109,7 +122,7 @@
                     <p class="crm-section-title">Vendor register</p>
                     <h2 class="mt-1 text-lg font-semibold text-slate-950">Date-wise table</h2>
                 </div>
-                <span class="text-sm text-slate-500">{{ $entries->total() }} total entries</span>
+                <span class="text-sm text-slate-500">{{ $entryTotal }} total entries</span>
             </div>
 
             <div class="crm-table-wrap rounded-none border-0">
@@ -138,10 +151,7 @@
                                     <td>{{ $entry->attachments_count }}</td>
                                     <td>{{ Money::formatMinor($entry->amount_minor) }}</td>
                                     <td class="crm-print-hidden">
-                                        <div class="flex flex-wrap gap-2">
-                                            <a href="{{ route('employee.vendor-entries.edit', $entry) }}" class="crm-button crm-button-primary px-4 py-2">Open</a>
-                                            <button type="button" onclick="window.print()" class="crm-button crm-button-secondary px-4 py-2">Print</button>
-                                        </div>
+                                        <a href="{{ route('employee.vendor-entries.edit', $entry) }}" class="crm-button crm-button-primary px-4 py-2">Open</a>
                                     </td>
                                 </tr>
                             @endforeach
@@ -173,7 +183,11 @@
             </div>
         </section>
 
-        {{ $entries->links() }}
+        @if ($entries instanceof Paginator && $entries->hasPages())
+            <div class="crm-print-hidden">
+                {{ $entries->links() }}
+            </div>
+        @endif
 
         <div
             x-cloak
@@ -208,4 +222,12 @@
             </div>
         </div>
     </div>
+
+    @if ($isPrint)
+        <script>
+            window.addEventListener('load', function () {
+                window.print();
+            });
+        </script>
+    @endif
 </x-app-layout>
