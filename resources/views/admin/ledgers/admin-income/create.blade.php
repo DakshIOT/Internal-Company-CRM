@@ -21,6 +21,7 @@
                 'currentVenue' => null,
                 'entry' => $entry,
                 'entryRouteParameter' => 'adminIncome',
+                'indexRoute' => 'admin.admin-income.index',
                 'isEditing' => false,
                 'moduleDescription' => 'Admin Income stays global and does not inherit employee venue-session rules.',
                 'moduleLabel' => 'Admin Income',

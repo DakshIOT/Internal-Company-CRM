@@ -26,6 +26,7 @@
                     'currentVenue' => null,
                     'entry' => $entry,
                     'entryRouteParameter' => 'adminIncome',
+                    'indexRoute' => 'admin.admin-income.index',
                     'isEditing' => true,
                     'moduleDescription' => 'Admin Income is admin-only and secured independently from employee venue context.',
                     'moduleLabel' => 'Admin Income',

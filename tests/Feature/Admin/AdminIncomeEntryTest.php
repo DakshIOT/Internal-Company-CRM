@@ -58,6 +58,24 @@ class AdminIncomeEntryTest extends TestCase
             ->assertOk();
     }
 
+    public function test_admin_income_create_and_edit_pages_render(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $entry = AdminIncomeEntry::factory()->create([
+            'user_id' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.admin-income.create'))
+            ->assertOk()
+            ->assertSee('Back to list');
+
+        $this->actingAs($admin)
+            ->get(route('admin.admin-income.edit', $entry))
+            ->assertOk()
+            ->assertSee('Back to list');
+    }
+
     public function test_employee_cannot_access_admin_income_routes(): void
     {
         $employee = User::factory()->employeeA()->create();
