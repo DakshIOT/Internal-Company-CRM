@@ -22,12 +22,13 @@ class EmployeeAssignmentController extends Controller
         abort_if($employee->isAdmin(), 404);
 
         $employee->load(['venues', 'serviceAssignments', 'packageAssignments']);
+        $packages = Package::query()->with('services')->orderBy('name')->get();
 
         return view('admin.master-data.employees.assignments', [
             'employee' => $employee,
             'venues' => Venue::query()->orderBy('name')->get(),
             'services' => Service::query()->orderBy('name')->get(),
-            'packages' => Package::query()->with('services')->orderBy('name')->get(),
+            'packages' => $packages,
             'assignedVenueIds' => $employee->venues->pluck('id')->all(),
             'frozenFunds' => $employee->venues
                 ->mapWithKeys(fn (Venue $venue) => [$venue->id => Money::formatMinor($venue->pivot->frozen_fund_minor)])
@@ -39,6 +40,9 @@ class EmployeeAssignmentController extends Controller
             'packageIdsByVenue' => $employee->packageAssignments
                 ->groupBy('venue_id')
                 ->map(fn ($assignments) => $assignments->pluck('package_id')->values()->all())
+                ->all(),
+            'packageServiceIds' => $packages
+                ->mapWithKeys(fn (Package $package) => [$package->id => $package->services->pluck('id')->all()])
                 ->all(),
         ]);
     }
@@ -71,7 +75,28 @@ class EmployeeAssignmentController extends Controller
             PackageAssignment::query()->where('user_id', $employee->id)->delete();
 
             foreach ($venueIds as $venueId) {
-                $serviceRows = collect($serviceIdsByVenue->get((string) $venueId, []))
+                $selectedPackageIds = collect($packageIdsByVenue->get((string) $venueId, []))
+                    ->map(fn ($packageId) => (int) $packageId)
+                    ->unique()
+                    ->values();
+
+                $derivedServiceIds = Package::query()
+                    ->whereIn('id', $selectedPackageIds)
+                    ->with('services:id')
+                    ->get()
+                    ->flatMap(fn (Package $package) => $package->services->pluck('id'))
+                    ->map(fn ($serviceId) => (int) $serviceId)
+                    ->unique()
+                    ->values();
+
+                $manualServiceIds = collect($serviceIdsByVenue->get((string) $venueId, []))
+                    ->map(fn ($serviceId) => (int) $serviceId)
+                    ->unique()
+                    ->values();
+
+                $serviceRows = $derivedServiceIds
+                    ->merge($manualServiceIds)
+                    ->unique()
                     ->map(fn ($serviceId) => [
                         'user_id' => $employee->id,
                         'venue_id' => $venueId,
@@ -87,7 +112,7 @@ class EmployeeAssignmentController extends Controller
                     ServiceAssignment::insert($serviceRows);
                 }
 
-                $packageRows = collect($packageIdsByVenue->get((string) $venueId, []))
+                $packageRows = $selectedPackageIds
                     ->map(fn ($packageId) => [
                         'user_id' => $employee->id,
                         'venue_id' => $venueId,

@@ -16,6 +16,7 @@ use App\Models\VendorEntry;
 use App\Models\Venue;
 use App\Models\VenueVendor;
 use App\Support\Role;
+use App\Support\Reports\ReportModule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
@@ -49,6 +50,35 @@ class ReportingTest extends TestCase
             ->assertOk()
             ->assertSee('Sky Wedding')
             ->assertDontSee('Garden Corporate');
+    }
+
+    public function test_dashboard_and_report_hub_redirect_to_selected_module_when_module_filter_is_applied(): void
+    {
+        [$admin, $venueA] = $this->seedReportData();
+
+        $dashboardResponse = $this->actingAs($admin)
+            ->get(route('admin.dashboard', [
+                'module' => ReportModule::FUNCTIONS,
+                'venue_id' => $venueA->id,
+                'date_from' => '2026-03-01',
+                'date_to' => '2026-03-31',
+            ]));
+
+        $dashboardResponse
+            ->assertRedirectContains(route('admin.reports.functions.index', [], false))
+            ->assertRedirectContains('venue_id='.$venueA->id)
+            ->assertRedirectContains('date_from=2026-03-01')
+            ->assertRedirectContains('date_to=2026-03-31');
+
+        $hubResponse = $this->actingAs($admin)
+            ->get(route('admin.reports.index', [
+                'module' => ReportModule::DAILY_INCOME,
+                'venue_id' => $venueA->id,
+            ]));
+
+        $hubResponse
+            ->assertRedirectContains(route('admin.reports.daily-income.index', [], false))
+            ->assertRedirectContains('venue_id='.$venueA->id);
     }
 
     public function test_non_admin_cannot_access_report_routes(): void

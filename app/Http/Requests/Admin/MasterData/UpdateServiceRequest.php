@@ -22,6 +22,8 @@ class UpdateServiceRequest extends FormRequest
             'standard_rate' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],
+            'package_ids' => ['nullable', 'array'],
+            'package_ids.*' => ['integer', Rule::exists('packages', 'id')],
         ];
     }
 }

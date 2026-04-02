@@ -20,6 +20,8 @@ class StoreVenueRequest extends FormRequest
             'is_active' => ['nullable', 'boolean'],
             'vendor_slots' => ['required', 'array', 'size:4'],
             'vendor_slots.*' => ['nullable', 'string', 'max:120'],
+            'employee_ids' => ['nullable', 'array'],
+            'employee_ids.*' => ['integer', Rule::exists('users', 'id')],
         ];
     }
 }

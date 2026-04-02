@@ -32,7 +32,7 @@
             <article class="crm-kpi"><p class="crm-section-title">Net After Frozen Fund</p><p class="mt-4 font-display text-3xl font-semibold text-slate-950">{{ Money::formatMinor($summary['net_total_after_frozen_fund_minor']) }}</p></article>
         </section>
 
-        <section class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section class="space-y-6 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:gap-6 2xl:space-y-0">
             <div class="space-y-6">
                 <div class="space-y-4 lg:hidden">
                     @forelse ($entries as $entry)
@@ -103,7 +103,7 @@
                 </section>
             </div>
 
-            <div class="space-y-6">
+            <div class="grid gap-6 md:grid-cols-2 2xl:grid-cols-1">
                 <article class="crm-panel p-6">
                     <p class="crm-section-title">Report summary</p>
                     <div class="mt-4 grid gap-3 text-sm text-slate-600">

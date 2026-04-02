@@ -42,7 +42,7 @@ class AdminIncomeEntryController extends Controller
         }
 
         return view('admin.ledgers.admin-income.index', [
-            'entries' => $query->orderByDesc('entry_date')->orderByDesc('id')->paginate(12)->withQueryString(),
+            'entries' => $query->orderByDesc('entry_date')->orderByDesc('id')->paginate(50)->withQueryString(),
             'filters' => $request->only(['search', 'entry_date']),
             'workspaceTotals' => $this->totalsService->forAdmin(AdminIncomeEntry::class, $date ?? null),
         ]);

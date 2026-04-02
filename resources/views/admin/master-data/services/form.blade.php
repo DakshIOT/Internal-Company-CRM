@@ -53,6 +53,57 @@
                     <x-input-error :messages="$errors->get('notes')" class="mt-2" />
                 </div>
             </article>
+
+            <article class="crm-panel p-6">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="crm-section-title">Package linkage</p>
+                        <h2 class="mt-2 text-xl font-semibold text-slate-950">Assign this service to packages</h2>
+                    </div>
+                    <span class="crm-chip bg-cyan-50 text-cyan-700">{{ count(old('package_ids', $selectedPackageIds)) }} selected</span>
+                </div>
+
+                <p class="mt-3 text-sm leading-6 text-slate-600">
+                    Pick any packages that should include this service by default. Admin still controls employee access later from the employee setup workspace.
+                </p>
+
+                <div class="mt-5 crm-table-wrap">
+                    <table class="crm-table min-w-[680px]">
+                        <thead>
+                            <tr>
+                                <th>Use</th>
+                                <th>Package</th>
+                                <th>Code</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse ($packages as $package)
+                                <tr>
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            name="package_ids[]"
+                                            value="{{ $package->id }}"
+                                            class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                                            @checked(in_array($package->id, old('package_ids', $selectedPackageIds), true))
+                                        >
+                                    </td>
+                                    <td class="font-semibold text-slate-950">{{ $package->name }}</td>
+                                    <td>{{ $package->code ?: 'No code' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="3" class="px-4 py-6 text-sm text-slate-500">
+                                        Create packages first, then return here to connect this service.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <x-input-error :messages="$errors->get('package_ids')" class="mt-3" />
+                <x-input-error :messages="$errors->get('package_ids.*')" class="mt-3" />
+            </article>
         </section>
 
         <aside class="space-y-6">
@@ -61,6 +112,7 @@
                 <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-600">
                     <li>Keep names short enough to fit cleanly in mobile function-entry rows later.</li>
                     <li>Rates are stored as integer minor units even though forms show plain decimals.</li>
+                    <li>Package selection here only defines where this service appears by default.</li>
                 </ul>
             </article>
 

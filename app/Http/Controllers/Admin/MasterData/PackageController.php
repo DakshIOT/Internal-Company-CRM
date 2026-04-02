@@ -64,7 +64,7 @@ class PackageController extends Controller
         $this->syncServices($package, $request->validated('service_ids', []), $request->validated('sort_orders', []));
 
         return redirect()
-            ->route('admin.master-data.packages.edit', $package)
+            ->route('admin.master-data.packages.index')
             ->with('status', 'Package created successfully.');
     }
 

@@ -2,7 +2,7 @@
     $user = auth()->user();
 @endphp
 
-<header class="relative z-30 border-b border-white/50 bg-white/88 backdrop-blur-xl sm:sticky sm:top-0">
+<header class="relative z-30 border-b border-white/50 bg-white/88 backdrop-blur-xl lg:sticky lg:top-0">
     <div class="crm-shell-header px-3 py-3 sm:px-6 lg:px-8 xl:px-10">
         <div class="flex min-w-0 items-start gap-3">
             <button

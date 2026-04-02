@@ -51,13 +51,13 @@
 
         <section class="crm-panel overflow-hidden">
             <div class="crm-table-wrap rounded-none border-0">
-                <table class="crm-table min-w-[980px]">
+                <table class="crm-table min-w-[1080px]">
                     <thead>
                         <tr>
                             <th>Service</th>
                             <th>Code</th>
                             <th>Rate</th>
-                            <th>Packages</th>
+                            <th>Assigned Packages</th>
                             <th>Assignments</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -69,7 +69,20 @@
                                 <td class="font-semibold text-slate-950">{{ $service->name }}</td>
                                 <td>{{ $service->code ?: 'No code' }}</td>
                                 <td>{{ Money::formatMinor($service->standard_rate_minor) }}</td>
-                                <td>{{ $service->packages_count }}</td>
+                                <td>
+                                    @if ($service->packages->isNotEmpty())
+                                        <div class="flex flex-wrap gap-2">
+                                            @foreach ($service->packages->take(3) as $package)
+                                                <span class="crm-chip bg-slate-100 text-slate-600">{{ $package->name }}</span>
+                                            @endforeach
+                                            @if ($service->packages_count > 3)
+                                                <span class="crm-chip bg-white text-slate-500">+{{ $service->packages_count - 3 }} more</span>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span class="text-slate-500">No packages</span>
+                                    @endif
+                                </td>
                                 <td>{{ $service->assignments_count }}</td>
                                 <td>
                                     <span class="crm-chip {{ $service->is_active ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-500' }}">

@@ -22,6 +22,10 @@ class UpdateEmployeeRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:190', Rule::unique('users', 'email')->ignore($employee?->id)],
             'role' => ['required', 'string', Rule::in(Role::all())],
             'is_active' => ['nullable', 'boolean'],
+            'venue_ids' => ['nullable', 'array'],
+            'venue_ids.*' => ['integer', 'exists:venues,id'],
+            'frozen_funds' => ['nullable', 'array'],
+            'frozen_funds.*' => ['nullable', 'numeric', 'min:0'],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
         ];
     }

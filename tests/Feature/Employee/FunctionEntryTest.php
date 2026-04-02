@@ -331,6 +331,55 @@ class FunctionEntryTest extends TestCase
         });
     }
 
+    public function test_function_index_shows_child_record_counts_in_the_register_table(): void
+    {
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue, 10000);
+
+        $entry = FunctionEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-30',
+            'name' => 'Counted Function',
+        ]);
+
+        $package = Package::factory()->create();
+
+        $entry->packages()->create([
+            'package_id' => $package->id,
+            'name_snapshot' => 'Wedding Package',
+        ]);
+
+        $entry->extraCharges()->create([
+            'entry_date' => '2026-03-30',
+            'name' => 'Flowers',
+            'mode' => 'cash',
+            'amount_minor' => 1000,
+        ]);
+
+        $entry->discounts()->create([
+            'entry_date' => '2026-03-30',
+            'name' => 'Promo',
+            'mode' => 'cash',
+            'amount_minor' => 500,
+        ]);
+
+        $entry->installments()->create([
+            'entry_date' => '2026-03-30',
+            'name' => 'Advance',
+            'mode' => 'cash',
+            'amount_minor' => 1500,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.index'))
+            ->assertOk()
+            ->assertSee('Counted Function')
+            ->assertSeeInOrder(['Counted Function', '1', '1', '1', '1']);
+    }
+
     private function assignEmployeeToVenue(User $employee, Venue $venue, int $frozenFundMinor = 0): void
     {
         $employee->venues()->attach($venue->id, [

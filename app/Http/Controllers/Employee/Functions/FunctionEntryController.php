@@ -38,7 +38,10 @@ class FunctionEntryController extends Controller
         $venueId = $this->selectedVenueId($request);
         $venue = $user->venues()->whereKey($venueId)->firstOrFail();
 
-        $orderedQuery = $this->indexQuery($request)->orderByDesc('entry_date')->orderByDesc('id');
+        $orderedQuery = $this->indexQuery($request)
+            ->withCount(['packages', 'extraCharges', 'installments', 'discounts', 'attachments'])
+            ->orderByDesc('entry_date')
+            ->orderByDesc('id');
         $printMode = $request->boolean('print');
         $entries = $printMode
             ? $orderedQuery->get()

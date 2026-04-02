@@ -1,13 +1,35 @@
-# Internal Company CRM
+<h1 align="center">Internal Company CRM</h1>
 
-![Laravel](https://img.shields.io/badge/Laravel-9.52-red)
-![PHP](https://img.shields.io/badge/PHP-8.0%2B-777bb4)
-![Livewire](https://img.shields.io/badge/Livewire-2.12-fb70a9)
-![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.x-38bdf8)
-![MySQL](https://img.shields.io/badge/MySQL-8%2B-00758f)
-![Status](https://img.shields.io/badge/Status-Internal%20Use%20Only-111827)
+<p align="center">
+  Venue-scoped internal CRM for admin and employee operations, ledgers, reports, exports, and attachments.
+</p>
+
+<p align="center">
+  <img alt="License" src="https://img.shields.io/github/license/DakshIOT/Internal-Company-CRM?color=111827">
+  <img alt="Last Commit" src="https://img.shields.io/github/last-commit/DakshIOT/Internal-Company-CRM/main?color=2563eb">
+  <img alt="Repo Size" src="https://img.shields.io/github/repo-size/DakshIOT/Internal-Company-CRM?color=0f766e">
+  <img alt="Venue Scoped" src="https://img.shields.io/badge/Data-Venue%20Scoped-0f766e">
+  <img alt="Setup Flow" src="https://img.shields.io/badge/Admin-Employee%20Centered%20Setup-1d4ed8">
+  <img alt="Laravel" src="https://img.shields.io/badge/Laravel-9.52-ef4444">
+  <img alt="PHP" src="https://img.shields.io/badge/PHP-8.0%2B-777bb4">
+  <img alt="Livewire" src="https://img.shields.io/badge/Livewire-2.12-fb70a9">
+  <img alt="Tailwind CSS" src="https://img.shields.io/badge/TailwindCSS-3.x-38bdf8">
+  <img alt="MySQL" src="https://img.shields.io/badge/MySQL-8%2B-00758f">
+  <img alt="Hostinger Ready" src="https://img.shields.io/badge/Hostinger-Ready-673de6">
+  <img alt="Responsive UI" src="https://img.shields.io/badge/UI-Mobile%20Responsive-0891b2">
+  <img alt="Exports" src="https://img.shields.io/badge/Exports-Excel%20Ready-166534">
+  <img alt="Status" src="https://img.shields.io/badge/Status-Internal%20Use%20Only-111827">
+</p>
 
 Laravel-based internal CRM for venue-scoped business operations. The application supports fixed employee roles, mandatory venue selection for employees, server-side totals, symbol-free money display, attachment handling, admin reports, and Excel exports.
+
+Released under the [MIT License](LICENSE).
+
+## Why This Repo Exists
+
+- Give admin one controlled workspace for employees, venues, packages, services, reports, and exports.
+- Give employees a clean venue-scoped workflow with strict access isolation.
+- Keep financial calculations server-owned and deployment simple enough for Hostinger shared hosting.
 
 ## About
 
@@ -35,6 +57,13 @@ This repository represents an internal operations platform for company teams tha
 - Excel exports with plain numeric output and no currency symbols
 - Responsive Blade UI built for desktop and mobile
 
+## UI and Workflow Notes
+
+- Admin setup is employee-centered: create employee, assign venues, then manage packages and services in the employee setup workspace.
+- Employee Type A supports frozen fund per assigned venue.
+- Employee Type B uses the 4 vendor slots defined per venue.
+- Reports use explicit admin filters and never depend on employee venue session state.
+
 ## Tech Stack
 
 - Laravel 9
@@ -45,6 +74,14 @@ This repository represents an internal operations platform for company teams tha
 - Vite
 - MySQL / MariaDB
 - `maatwebsite/excel`
+
+## Quality Signals
+
+- Feature-tested admin master-data flows
+- Feature-tested reports and exports
+- Attachment handling with preview/download authorization
+- Hostinger deployment pack included in the repo
+- Blade + Tailwind UI tuned for desktop and mobile
 
 ## Codex Agents
 
@@ -285,6 +322,10 @@ chmod -R 775 storage bootstrap/cache
 - Business source of truth: [`CRM_BRIEF.md`](./CRM_BRIEF.md)
 - Implementation source of truth: [`PROJECT_PLAN.md`](./PROJECT_PLAN.md)
 - Repo working rules: [`AGENTS.md`](./AGENTS.md)
+
+## License
+
+This repository is available under the [MIT License](./LICENSE).
 
 ## Notes
 

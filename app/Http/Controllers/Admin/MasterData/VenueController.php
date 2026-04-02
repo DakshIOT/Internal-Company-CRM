@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Admin\MasterData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\MasterData\StoreVenueRequest;
 use App\Http\Requests\Admin\MasterData\UpdateVenueRequest;
+use App\Models\PackageAssignment;
+use App\Models\ServiceAssignment;
+use App\Models\User;
 use App\Models\Venue;
 use App\Models\VenueVendor;
+use App\Support\Role;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +20,7 @@ class VenueController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Venue::query()->withCount('users');
+        $query = Venue::query()->withCount(['users', 'vendors']);
 
         if ($search = trim((string) $request->string('search'))) {
             $query->where(function ($builder) use ($search) {
@@ -47,22 +51,29 @@ class VenueController extends Controller
         return view('admin.master-data.venues.form', [
             'isEditing' => false,
             'venue' => new Venue(['is_active' => true]),
+            'employees' => User::query()->whereIn('role', Role::employeeRoles())->orderBy('name')->get(),
+            'selectedEmployeeIds' => [],
             'vendorSlots' => $this->normalizeVendorSlots(collect()),
         ]);
     }
 
     public function store(StoreVenueRequest $request): RedirectResponse
     {
-        $venue = Venue::create([
-            'name' => $request->validated('name'),
-            'code' => $request->validated('code'),
-            'is_active' => $request->boolean('is_active'),
-        ]);
+        $venue = null;
 
-        $this->syncVendorSlots($venue, $request->validated('vendor_slots'));
+        DB::transaction(function () use ($request, &$venue) {
+            $venue = Venue::create([
+                'name' => $request->validated('name'),
+                'code' => $request->validated('code'),
+                'is_active' => $request->boolean('is_active'),
+            ]);
+
+            $this->syncVendorSlots($venue, $request->validated('vendor_slots'));
+            $this->syncEmployees($venue, $request->validated('employee_ids', []));
+        });
 
         return redirect()
-            ->route('admin.master-data.venues.edit', $venue)
+            ->route('admin.master-data.venues.index')
             ->with('status', 'Venue created successfully.');
     }
 
@@ -74,19 +85,24 @@ class VenueController extends Controller
         return view('admin.master-data.venues.form', [
             'isEditing' => true,
             'venue' => $venue,
+            'employees' => User::query()->whereIn('role', Role::employeeRoles())->orderBy('name')->get(),
+            'selectedEmployeeIds' => $venue->users()->pluck('users.id')->all(),
             'vendorSlots' => $this->normalizeVendorSlots($venue->vendors),
         ]);
     }
 
     public function update(UpdateVenueRequest $request, Venue $venue): RedirectResponse
     {
-        $venue->update([
-            'name' => $request->validated('name'),
-            'code' => $request->validated('code'),
-            'is_active' => $request->boolean('is_active'),
-        ]);
+        DB::transaction(function () use ($request, $venue) {
+            $venue->update([
+                'name' => $request->validated('name'),
+                'code' => $request->validated('code'),
+                'is_active' => $request->boolean('is_active'),
+            ]);
 
-        $this->syncVendorSlots($venue, $request->validated('vendor_slots'));
+            $this->syncVendorSlots($venue, $request->validated('vendor_slots'));
+            $this->syncEmployees($venue, $request->validated('employee_ids', []));
+        });
 
         return redirect()
             ->route('admin.master-data.venues.edit', $venue)
@@ -125,5 +141,24 @@ class VenueController extends Controller
                 $slotNumber => $mapped->get($slotNumber)?->name ?? "Vendor {$slotNumber}",
             ])
             ->all();
+    }
+
+    protected function syncEmployees(Venue $venue, array $employeeIds): void
+    {
+        $selectedEmployeeIds = User::query()
+            ->whereIn('id', collect($employeeIds)->map(fn ($employeeId) => (int) $employeeId)->all())
+            ->whereIn('role', Role::employeeRoles())
+            ->pluck('id')
+            ->all();
+
+        $currentEmployeeIds = $venue->users()->pluck('users.id')->all();
+        $removedEmployeeIds = array_values(array_diff($currentEmployeeIds, $selectedEmployeeIds));
+
+        $venue->users()->sync($selectedEmployeeIds);
+
+        if ($removedEmployeeIds !== []) {
+            ServiceAssignment::query()->where('venue_id', $venue->id)->whereIn('user_id', $removedEmployeeIds)->delete();
+            PackageAssignment::query()->where('venue_id', $venue->id)->whereIn('user_id', $removedEmployeeIds)->delete();
+        }
     }
 }

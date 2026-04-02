@@ -11,14 +11,15 @@
         </div>
 
         <div class="mt-4">
-            <x-input-label for="password" value="Password" />
-
-            <x-text-input id="password" class="crm-input mt-2 block w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
-
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <x-password-field
+                id="password"
+                name="password"
+                label="Password"
+                :messages="$errors->get('password')"
+                autocomplete="current-password"
+                :required="true"
+                input-class="crm-input block w-full"
+            />
         </div>
 
         <div class="flex items-center justify-between gap-4">

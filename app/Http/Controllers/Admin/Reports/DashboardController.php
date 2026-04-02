@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Reports\ReportFilterRequest;
 use App\Services\Reports\AdminDashboardMetricsService;
 use App\Services\Reports\ReportFilterOptionsService;
 use App\Support\Reports\ReportModule;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -15,8 +16,16 @@ class DashboardController extends Controller
         ReportFilterRequest $request,
         AdminDashboardMetricsService $metricsService,
         ReportFilterOptionsService $optionsService
-    ): View {
+    ): View|RedirectResponse {
         $filters = $request->filters();
+
+        if ($filters->module) {
+            return redirect()->route(
+                ReportModule::routeName($filters->module),
+                collect($filters->query())->except('module')->all()
+            );
+        }
+
         $metrics = $metricsService->overview($filters);
 
         return view('admin.reports.dashboard', [

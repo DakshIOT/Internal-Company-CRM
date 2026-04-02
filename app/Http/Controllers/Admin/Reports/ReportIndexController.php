@@ -6,13 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Reports\ReportFilterRequest;
 use App\Services\Reports\ReportFilterOptionsService;
 use App\Support\Reports\ReportModule;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class ReportIndexController extends Controller
 {
-    public function __invoke(ReportFilterRequest $request, ReportFilterOptionsService $optionsService): View
+    public function __invoke(ReportFilterRequest $request, ReportFilterOptionsService $optionsService): View|RedirectResponse
     {
         $filters = $request->filters();
+
+        if ($filters->module) {
+            return redirect()->route(
+                ReportModule::routeName($filters->module),
+                collect($filters->query())->except('module')->all()
+            );
+        }
 
         return view('admin.reports.index', [
             'filters' => $filters,
