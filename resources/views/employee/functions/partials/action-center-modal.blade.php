@@ -83,13 +83,31 @@
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 @foreach ($functionPackage->serviceLines as $line)
-                                    <tr x-data="{ persons: '{{ $line->persons }}', rate: '{{ number_format($line->rate_minor / 100, 2, '.', '') }}', extra: '{{ number_format($line->extra_charge_minor / 100, 2, '.', '') }}' }">
+                                    <tr x-data="{ personMode: '{{ $line->person_input_mode ?: ($line->uses_persons ? 'fixed' : 'none') }}', persons: '{{ $line->persons }}', rate: '{{ number_format($line->rate_minor / 100, 2, '.', '') }}', extra: '{{ number_format($line->extra_charge_minor / 100, 2, '.', '') }}' }">
                                         <td>
                                             <input type="checkbox" name="service_lines[{{ $line->id }}][is_selected]" value="1" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked($line->is_selected) />
                                         </td>
                                         <td class="font-semibold text-slate-900">{{ $line->item_name_snapshot }}</td>
                                         <td>
-                                            <x-text-input name="service_lines[{{ $line->id }}][persons]" x-model="persons" :value="old('service_lines.'.$line->id.'.persons', $line->persons)" class="crm-input w-full min-w-[6rem]" />
+                                            @if ($line->allowsEmployeePersonEntry())
+                                                <x-text-input
+                                                    name="service_lines[{{ $line->id }}][persons]"
+                                                    x-model="persons"
+                                                    :value="old('service_lines.'.$line->id.'.persons', $line->persons)"
+                                                    type="number"
+                                                    min="0"
+                                                    class="crm-input w-full min-w-[7rem]"
+                                                />
+                                            @elseif ($line->usesPersonsField())
+                                                <div class="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                                                    {{ $line->persons }}
+                                                </div>
+                                                <input type="hidden" name="service_lines[{{ $line->id }}][persons]" value="{{ $line->persons }}">
+                                            @else
+                                                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
+                                                    No persons
+                                                </div>
+                                            @endif
                                         </td>
                                         <td>
                                             <x-text-input name="service_lines[{{ $line->id }}][rate]" x-model="rate" :value="old('service_lines.'.$line->id.'.rate', Money::formatMinor($line->rate_minor))" class="crm-input w-full min-w-[7rem] bg-slate-100" readonly />
@@ -100,7 +118,7 @@
                                         <td>
                                             <textarea name="service_lines[{{ $line->id }}][notes]" rows="2" class="crm-input min-w-[14rem]">{{ old('service_lines.'.$line->id.'.notes', $line->notes) }}</textarea>
                                         </td>
-                                        <td class="font-semibold text-slate-900" x-text="(((parseFloat(persons || 0) * parseFloat(rate || 0)) + parseFloat(extra || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></td>
+                                        <td class="font-semibold text-slate-900" x-text="(((((personMode === 'none') ? 1 : parseFloat(persons || 0)) * parseFloat(rate || 0)) + parseFloat(extra || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></td>
                                     </tr>
                                 @endforeach
                                 <tr class="bg-cyan-50/70">

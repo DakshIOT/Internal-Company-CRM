@@ -8,6 +8,7 @@ use App\Support\Money;
 class DailyIncomeReportQuery extends AbstractAmountReportQuery
 {
     protected string $modelClass = DailyIncomeEntry::class;
+    protected bool $requiresUserSelection = true;
 
     protected function exportHeadings(): array
     {

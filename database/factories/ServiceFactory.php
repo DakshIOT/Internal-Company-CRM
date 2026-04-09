@@ -12,6 +12,9 @@ class ServiceFactory extends Factory
             'name' => fake()->unique()->words(2, true),
             'code' => strtoupper(fake()->unique()->bothify('SRV###')),
             'standard_rate_minor' => fake()->numberBetween(10000, 500000),
+            'uses_persons' => true,
+            'person_input_mode' => 'fixed',
+            'default_persons' => 1,
             'notes' => fake()->sentence(),
             'is_active' => true,
         ];

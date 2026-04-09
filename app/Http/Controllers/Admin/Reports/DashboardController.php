@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Admin\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Reports\ReportFilterRequest;
+use App\Reports\Filters\ReportFilters;
+use App\Models\User;
 use App\Services\Reports\AdminDashboardMetricsService;
 use App\Services\Reports\ReportFilterOptionsService;
-use App\Support\Reports\ReportModule;
-use Illuminate\Http\RedirectResponse;
+use App\Support\Role;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -16,29 +17,16 @@ class DashboardController extends Controller
         ReportFilterRequest $request,
         AdminDashboardMetricsService $metricsService,
         ReportFilterOptionsService $optionsService
-    ): View|RedirectResponse {
+    ): View {
         $filters = $request->filters();
-
-        if ($filters->module) {
-            return redirect()->route(
-                ReportModule::routeName($filters->module),
-                collect($filters->query())->except('module')->all()
-            );
-        }
-
-        $metrics = $metricsService->overview($filters);
+        $metrics = $metricsService->overview(ReportFilters::fromArray([]));
+        $employeeCount = User::query()->whereIn('role', Role::employeeRoles())->count();
 
         return view('admin.reports.dashboard', [
             'filters' => $filters,
             'filterOptions' => $optionsService->forFilters($filters),
             'metrics' => $metrics,
-            'moduleLinks' => collect(ReportModule::all())->map(function (string $module) use ($filters) {
-                return [
-                    'label' => ReportModule::label($module),
-                    'route' => ReportModule::routeName($module),
-                    'query' => $filters->query(),
-                ];
-            })->all(),
+            'employeeCount' => $employeeCount,
         ]);
     }
 }

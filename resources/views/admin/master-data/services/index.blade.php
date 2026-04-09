@@ -56,6 +56,7 @@
                         <tr>
                             <th>Service</th>
                             <th>Code</th>
+                            <th>Rule</th>
                             <th>Rate</th>
                             <th>Assigned Packages</th>
                             <th>Assignments</th>
@@ -68,6 +69,11 @@
                             <tr>
                                 <td class="font-semibold text-slate-950">{{ $service->name }}</td>
                                 <td>{{ $service->code ?: 'No code' }}</td>
+                                <td>
+                                    <span class="crm-chip {{ $service->person_input_mode === 'none' ? 'bg-slate-100 text-slate-600' : 'bg-cyan-50 text-cyan-700' }}">
+                                        {{ $service->personModeLabel() }}
+                                    </span>
+                                </td>
                                 <td>{{ Money::formatMinor($service->standard_rate_minor) }}</td>
                                 <td>
                                     @if ($service->packages->isNotEmpty())
@@ -104,7 +110,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-10 text-center text-slate-500">
+                                <td colspan="8" class="px-4 py-10 text-center text-slate-500">
                                     No services found for the current filter.
                                 </td>
                             </tr>

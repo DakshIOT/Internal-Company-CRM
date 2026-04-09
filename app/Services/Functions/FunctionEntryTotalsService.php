@@ -8,9 +8,11 @@ use App\Models\FunctionServiceLine;
 
 class FunctionEntryTotalsService
 {
-    public function calculateLineTotalMinor(int $persons, int $rateMinor, int $extraChargeMinor): int
+    public function calculateLineTotalMinor(string $personInputMode, int $persons, int $rateMinor, int $extraChargeMinor): int
     {
-        return max(0, $persons) * max(0, $rateMinor) + max(0, $extraChargeMinor);
+        $quantity = $personInputMode === FunctionServiceLine::PERSON_MODE_NONE ? 1 : max(0, $persons);
+
+        return $quantity * max(0, $rateMinor) + max(0, $extraChargeMinor);
     }
 
     public function recalculate(FunctionEntry $functionEntry): FunctionEntry

@@ -13,6 +13,7 @@ use App\Models\FunctionInstallment;
 use App\Models\FunctionPackage;
 use App\Models\FunctionServiceLine;
 use App\Models\Package;
+use App\Models\PrintSetting;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\VendorEntry;
@@ -32,6 +33,7 @@ class LocalDemoSeeder extends Seeder
         $services = $this->seedServices();
         $packages = $this->seedPackages($services);
 
+        PrintSetting::current();
         $this->syncAssignments($users, $venues, $services, $packages);
         $this->clearTransactionalData();
         $this->seedFunctionEntries($users, $venues, $packages);

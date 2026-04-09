@@ -49,6 +49,11 @@ class Venue extends Model
         return $this->hasMany(PackageAssignment::class);
     }
 
+    public function packageServiceAssignments(): HasMany
+    {
+        return $this->hasMany(PackageServiceAssignment::class);
+    }
+
     public function functionEntries(): HasMany
     {
         return $this->hasMany(FunctionEntry::class);

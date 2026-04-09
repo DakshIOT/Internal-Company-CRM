@@ -21,6 +21,16 @@ class ReportModule
         ];
     }
 
+    public static function employeeScoped(): array
+    {
+        return [
+            self::FUNCTIONS,
+            self::DAILY_INCOME,
+            self::DAILY_BILLING,
+            self::VENDOR_ENTRIES,
+        ];
+    }
+
     public static function label(string $module): string
     {
         return match ($module) {

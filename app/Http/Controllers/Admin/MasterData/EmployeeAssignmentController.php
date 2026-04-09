@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\MasterData\UpdateEmployeeAssignmentsRequest;
 use App\Models\Package;
 use App\Models\PackageAssignment;
+use App\Models\PackageServiceAssignment;
 use App\Models\Service;
 use App\Models\ServiceAssignment;
 use App\Models\User;
@@ -21,7 +22,7 @@ class EmployeeAssignmentController extends Controller
     {
         abort_if($employee->isAdmin(), 404);
 
-        $employee->load(['venues', 'serviceAssignments', 'packageAssignments']);
+        $employee->load(['venues', 'serviceAssignments', 'packageAssignments', 'packageServiceAssignments']);
         $packages = Package::query()->with('services')->orderBy('name')->get();
 
         return view('admin.master-data.employees.assignments', [
@@ -41,6 +42,15 @@ class EmployeeAssignmentController extends Controller
                 ->groupBy('venue_id')
                 ->map(fn ($assignments) => $assignments->pluck('package_id')->values()->all())
                 ->all(),
+            'packageServiceIdsByVenuePackage' => $employee->packageServiceAssignments
+                ->groupBy('venue_id')
+                ->map(function ($venueAssignments) {
+                    return $venueAssignments
+                        ->groupBy('package_id')
+                        ->map(fn ($packageAssignments) => $packageAssignments->pluck('service_id')->values()->all())
+                        ->all();
+                })
+                ->all(),
             'packageServiceIds' => $packages
                 ->mapWithKeys(fn (Package $package) => [$package->id => $package->services->pluck('id')->all()])
                 ->all(),
@@ -59,8 +69,18 @@ class EmployeeAssignmentController extends Controller
         $frozenFunds = collect($request->validated('frozen_funds', []));
         $serviceIdsByVenue = collect($request->validated('service_ids_by_venue', []));
         $packageIdsByVenue = collect($request->validated('package_ids_by_venue', []));
+        $packageServiceIdsByVenue = collect($request->validated('package_service_ids_by_venue', []));
+        $packages = Package::query()->with('services:id')->get()->keyBy('id');
 
-        DB::transaction(function () use ($employee, $venueIds, $frozenFunds, $serviceIdsByVenue, $packageIdsByVenue) {
+        DB::transaction(function () use (
+            $employee,
+            $venueIds,
+            $frozenFunds,
+            $serviceIdsByVenue,
+            $packageIdsByVenue,
+            $packageServiceIdsByVenue,
+            $packages
+        ) {
             $venueSyncData = $venueIds->mapWithKeys(function (int $venueId) use ($employee, $frozenFunds) {
                 $frozenFundMinor = $employee->supportsFrozenFund()
                     ? Money::toMinor($frozenFunds->get($venueId))
@@ -73,6 +93,7 @@ class EmployeeAssignmentController extends Controller
 
             ServiceAssignment::query()->where('user_id', $employee->id)->delete();
             PackageAssignment::query()->where('user_id', $employee->id)->delete();
+            PackageServiceAssignment::query()->where('user_id', $employee->id)->delete();
 
             foreach ($venueIds as $venueId) {
                 $selectedPackageIds = collect($packageIdsByVenue->get((string) $venueId, []))
@@ -80,37 +101,10 @@ class EmployeeAssignmentController extends Controller
                     ->unique()
                     ->values();
 
-                $derivedServiceIds = Package::query()
-                    ->whereIn('id', $selectedPackageIds)
-                    ->with('services:id')
-                    ->get()
-                    ->flatMap(fn (Package $package) => $package->services->pluck('id'))
-                    ->map(fn ($serviceId) => (int) $serviceId)
-                    ->unique()
-                    ->values();
-
                 $manualServiceIds = collect($serviceIdsByVenue->get((string) $venueId, []))
                     ->map(fn ($serviceId) => (int) $serviceId)
                     ->unique()
                     ->values();
-
-                $serviceRows = $derivedServiceIds
-                    ->merge($manualServiceIds)
-                    ->unique()
-                    ->map(fn ($serviceId) => [
-                        'user_id' => $employee->id,
-                        'venue_id' => $venueId,
-                        'service_id' => (int) $serviceId,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ])
-                    ->unique(fn (array $row) => $row['service_id'])
-                    ->values()
-                    ->all();
-
-                if ($serviceRows !== []) {
-                    ServiceAssignment::insert($serviceRows);
-                }
 
                 $packageRows = $selectedPackageIds
                     ->map(fn ($packageId) => [
@@ -126,6 +120,67 @@ class EmployeeAssignmentController extends Controller
 
                 if ($packageRows !== []) {
                     PackageAssignment::insert($packageRows);
+                }
+
+                $packageServiceRows = [];
+                $derivedServiceIds = collect();
+
+                foreach ($selectedPackageIds as $packageId) {
+                    /** @var \App\Models\Package|null $package */
+                    $package = $packages->get($packageId);
+
+                    if (! $package) {
+                        continue;
+                    }
+
+                    $allowedServiceIds = $package->services
+                        ->pluck('id')
+                        ->map(fn ($serviceId) => (int) $serviceId)
+                        ->values();
+
+                    $selectedServiceIds = collect(data_get($packageServiceIdsByVenue->all(), $venueId.'.'.$packageId, []))
+                        ->map(fn ($serviceId) => (int) $serviceId)
+                        ->intersect($allowedServiceIds)
+                        ->unique()
+                        ->values();
+
+                    if ($selectedServiceIds->isEmpty()) {
+                        $selectedServiceIds = $allowedServiceIds;
+                    }
+
+                    foreach ($selectedServiceIds as $serviceId) {
+                        $packageServiceRows[] = [
+                            'user_id' => $employee->id,
+                            'venue_id' => $venueId,
+                            'package_id' => $packageId,
+                            'service_id' => $serviceId,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+
+                    $derivedServiceIds = $derivedServiceIds->merge($selectedServiceIds);
+                }
+
+                if ($packageServiceRows !== []) {
+                    PackageServiceAssignment::insert($packageServiceRows);
+                }
+
+                $serviceRows = $derivedServiceIds
+                    ->merge($manualServiceIds)
+                    ->unique()
+                    ->map(fn ($serviceId) => [
+                        'user_id' => $employee->id,
+                        'venue_id' => $venueId,
+                        'service_id' => (int) $serviceId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ])
+                    ->values()
+                    ->all();
+
+                if ($serviceRows !== []) {
+                    ServiceAssignment::insert($serviceRows);
                 }
             }
         });

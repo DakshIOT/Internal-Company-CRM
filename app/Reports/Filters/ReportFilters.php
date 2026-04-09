@@ -63,4 +63,9 @@ class ReportFilters
     {
         return $this->query() !== [];
     }
+
+    public function hasEmployeeScope(): bool
+    {
+        return ! is_null($this->userId);
+    }
 }

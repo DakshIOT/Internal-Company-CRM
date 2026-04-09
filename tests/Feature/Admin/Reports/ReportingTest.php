@@ -25,25 +25,25 @@ class ReportingTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_view_dashboard_and_function_report_with_explicit_filters(): void
+    public function test_admin_can_view_dashboard_and_function_report_with_employee_scope(): void
     {
         [$admin, $venueA, $venueB, $employeeA] = $this->seedReportData();
 
         $this->actingAs($admin)
             ->get(route('admin.dashboard', [
+                'user_id' => $employeeA->id,
                 'venue_id' => $venueA->id,
-                'employee_role' => Role::EMPLOYEE_A,
                 'date_from' => '2026-03-01',
                 'date_to' => '2026-03-31',
             ]))
             ->assertOk()
             ->assertSee('Admin reporting dashboard')
-            ->assertSee('Function Total');
+            ->assertSee('Employees');
 
         $this->actingAs($admin)
             ->get(route('admin.reports.functions.index', [
+                'user_id' => $employeeA->id,
                 'venue_id' => $venueA->id,
-                'employee_role' => Role::EMPLOYEE_A,
                 'date_from' => '2026-03-01',
                 'date_to' => '2026-03-31',
             ]))
@@ -52,32 +52,43 @@ class ReportingTest extends TestCase
             ->assertDontSee('Garden Corporate');
     }
 
-    public function test_dashboard_and_report_hub_redirect_to_selected_module_when_module_filter_is_applied(): void
+    public function test_dashboard_stays_global_and_reports_prompt_for_employee_before_loading_rows(): void
     {
-        [$admin, $venueA] = $this->seedReportData();
+        [$admin] = $this->seedReportData();
 
-        $dashboardResponse = $this->actingAs($admin)
-            ->get(route('admin.dashboard', [
-                'module' => ReportModule::FUNCTIONS,
-                'venue_id' => $venueA->id,
-                'date_from' => '2026-03-01',
-                'date_to' => '2026-03-31',
-            ]));
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('Admin reporting dashboard')
+            ->assertSee('Open employee-wise reports')
+            ->assertDontSee('Select an employee to load report data');
 
-        $dashboardResponse
-            ->assertRedirectContains(route('admin.reports.functions.index', [], false))
-            ->assertRedirectContains('venue_id='.$venueA->id)
-            ->assertRedirectContains('date_from=2026-03-01')
-            ->assertRedirectContains('date_to=2026-03-31');
+        $this->actingAs($admin)
+            ->get(route('admin.reports.functions.index'))
+            ->assertOk()
+            ->assertSee('Select an employee to load report data')
+            ->assertDontSee('Sky Wedding');
+    }
+
+    public function test_report_hub_redirects_to_selected_module_only_after_employee_is_selected(): void
+    {
+        [$admin, $venueA, $venueB, $employeeA] = $this->seedReportData();
+
+        $this->actingAs($admin)
+            ->get(route('admin.reports.index'))
+            ->assertOk()
+            ->assertSee('Choose employee and open report');
 
         $hubResponse = $this->actingAs($admin)
             ->get(route('admin.reports.index', [
+                'user_id' => $employeeA->id,
                 'module' => ReportModule::DAILY_INCOME,
                 'venue_id' => $venueA->id,
             ]));
 
         $hubResponse
             ->assertRedirectContains(route('admin.reports.daily-income.index', [], false))
+            ->assertRedirectContains('user_id='.$employeeA->id)
             ->assertRedirectContains('venue_id='.$venueA->id);
     }
 
@@ -96,12 +107,13 @@ class ReportingTest extends TestCase
 
     public function test_function_export_download_uses_plain_numeric_workbook_without_currency_markers(): void
     {
-        [$admin, $venueA] = $this->seedReportData();
+        [$admin, $venueA, $venueB, $employeeA] = $this->seedReportData();
 
         Excel::fake();
 
         $this->actingAs($admin)
             ->get(route('admin.reports.functions.export', [
+                'user_id' => $employeeA->id,
                 'venue_id' => $venueA->id,
                 'date_from' => '2026-03-01',
                 'date_to' => '2026-03-31',
@@ -127,6 +139,50 @@ class ReportingTest extends TestCase
 
             return true;
         });
+    }
+
+    public function test_admin_can_export_all_employee_reports_in_one_workbook(): void
+    {
+        [$admin, $venueA, $venueB, $employeeA] = $this->seedReportData();
+
+        Excel::fake();
+
+        $this->actingAs($admin)
+            ->get(route('admin.reports.export-all', [
+                'user_id' => $employeeA->id,
+                'venue_id' => $venueA->id,
+                'date_from' => '2026-03-01',
+                'date_to' => '2026-03-31',
+            ]))
+            ->assertOk();
+
+        Excel::assertDownloaded('employee-'.$employeeA->id.'-all-reports-2026-03-01-to-2026-03-31.xlsx', function ($export) {
+            $this->assertInstanceOf(WorkbookExport::class, $export);
+            $sheetNames = collect($export->sheets())->map(fn ($sheet) => $sheet->title())->all();
+
+            $this->assertContains('Function Summary', $sheetNames);
+            $this->assertContains('Function Entries', $sheetNames);
+            $this->assertContains('Daily Income Entries', $sheetNames);
+            $this->assertContains('Daily Billing Entries', $sheetNames);
+            $this->assertContains('Vendor Entry Entries', $sheetNames);
+
+            return true;
+        });
+    }
+
+    public function test_dashboard_global_totals_include_all_module_amounts(): void
+    {
+        [$admin] = $this->seedReportData();
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('790.00')
+            ->assertSee('120.00')
+            ->assertSee('80.00')
+            ->assertSee('70.00')
+            ->assertSee('150.00')
+            ->assertSee('1,210.00');
     }
 
     public function test_admin_income_report_ignores_venue_filter_and_remains_global(): void

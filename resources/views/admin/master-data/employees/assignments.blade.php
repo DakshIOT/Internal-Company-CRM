@@ -7,7 +7,7 @@
                 <p class="crm-section-title">Admin Master Data</p>
                 <h1 class="mt-2 font-display text-3xl font-semibold text-slate-950">Employee setup workspace</h1>
                 <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                    This is the single place to finish employee access. Venues come first, packages come second, and services are mostly derived from those packages.
+                    This is the single place to finish employee access. Venues come first, then packages, then the services inside each selected package for this employee.
                 </p>
             </div>
             <a href="{{ route('admin.master-data.employees.edit', $employee) }}" class="crm-button crm-button-secondary justify-center">
@@ -40,8 +40,8 @@
                 <div class="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-4">
                     <div class="rounded-[1.25rem] bg-slate-50 p-4">1. Keep only the venues this employee should access.</div>
                     <div class="rounded-[1.25rem] bg-slate-50 p-4">2. Choose packages per venue first.</div>
-                    <div class="rounded-[1.25rem] bg-slate-50 p-4">3. Package services are added automatically.</div>
-                    <div class="rounded-[1.25rem] bg-slate-50 p-4">4. Add only extra services when the package coverage is not enough.</div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4">3. Inside each selected package, tick only the services this employee should be able to use.</div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4">4. The same service can be used in multiple packages for the same venue when needed.</div>
                 </div>
                 @if ($employee->supportsFrozenFund())
                     <p class="mt-4 text-sm text-slate-600">Frozen fund remains available for each selected venue because this is Employee Type A.</p>
@@ -56,20 +56,87 @@
                     $selectedPackages = collect(old('package_ids_by_venue.'.$venue->id, $packageIdsByVenue[$venue->id] ?? []))
                         ->map(fn ($packageId) => (int) $packageId)
                         ->values();
-                    $derivedServiceIds = $selectedPackages
-                        ->flatMap(fn ($packageId) => $packageServiceIds[$packageId] ?? [])
-                        ->map(fn ($serviceId) => (int) $serviceId)
-                        ->unique()
-                        ->values();
                     $selectedServices = collect(old('service_ids_by_venue.'.$venue->id, $serviceIdsByVenue[$venue->id] ?? []))
                         ->map(fn ($serviceId) => (int) $serviceId)
+                        ->values();
+                    $selectedPackageServices = collect(old('package_service_ids_by_venue.'.$venue->id, $packageServiceIdsByVenuePackage[$venue->id] ?? []))
+                        ->mapWithKeys(function ($serviceIds, $packageId) use ($packageServiceIds, $selectedPackages) {
+                            $normalized = collect($serviceIds)->map(fn ($serviceId) => (int) $serviceId)->values()->all();
+
+                            if ($normalized === [] && $selectedPackages->contains((int) $packageId)) {
+                                $normalized = collect($packageServiceIds[(int) $packageId] ?? [])
+                                    ->map(fn ($serviceId) => (int) $serviceId)
+                                    ->values()
+                                    ->all();
+                            }
+
+                            return [(int) $packageId => $normalized];
+                        })
+                        ->all();
+                    $derivedServiceIds = collect($selectedPackageServices)
+                        ->flatten()
+                        ->map(fn ($serviceId) => (int) $serviceId)
+                        ->unique()
                         ->values();
                     $extraServices = $selectedServices
                         ->reject(fn ($serviceId) => $derivedServiceIds->contains($serviceId))
                         ->values();
+                    $venueState = [
+                        'selectedPackages' => $selectedPackages->all(),
+                        'packageServices' => collect($selectedPackageServices)
+                            ->mapWithKeys(fn ($serviceIds, $packageId) => [(string) $packageId => array_values($serviceIds)])
+                            ->all(),
+                        'defaults' => collect($packageServiceIds)
+                            ->mapWithKeys(fn ($serviceIds, $packageId) => [(string) $packageId => array_values(array_map('intval', $serviceIds))])
+                            ->all(),
+                    ];
                 @endphp
 
-                <article class="crm-panel p-6">
+                <article
+                    class="crm-panel p-6"
+                    x-data='{
+                        selectedPackages: @json($venueState["selectedPackages"]),
+                        packageServices: @json($venueState["packageServices"]),
+                        defaults: @json($venueState["defaults"]),
+                        hasPackage(packageId) {
+                            return this.selectedPackages.includes(packageId);
+                        },
+                        syncPackage(packageId, checked) {
+                            if (checked) {
+                                if (! this.selectedPackages.includes(packageId)) {
+                                    this.selectedPackages.push(packageId);
+                                }
+
+                                if (! Array.isArray(this.packageServices[packageId]) || this.packageServices[packageId].length === 0) {
+                                    this.packageServices[packageId] = [...(this.defaults[packageId] ?? [])];
+                                }
+
+                                return;
+                            }
+
+                            this.selectedPackages = this.selectedPackages.filter((id) => id !== packageId);
+                            this.packageServices[packageId] = [];
+                        },
+                        hasService(packageId, serviceId) {
+                            return Array.isArray(this.packageServices[packageId]) && this.packageServices[packageId].includes(serviceId);
+                        },
+                        syncService(packageId, serviceId, checked) {
+                            if (! Array.isArray(this.packageServices[packageId])) {
+                                this.packageServices[packageId] = [];
+                            }
+
+                            if (checked) {
+                                if (! this.packageServices[packageId].includes(serviceId)) {
+                                    this.packageServices[packageId].push(serviceId);
+                                }
+
+                                return;
+                            }
+
+                            this.packageServices[packageId] = this.packageServices[packageId].filter((id) => id !== serviceId);
+                        }
+                    }'
+                >
                     <div class="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <div class="flex items-center gap-3">
@@ -82,7 +149,7 @@
                             <p class="mt-3 text-sm text-slate-600">Keep this venue enabled only if the employee should be able to log in and work in this venue.</p>
                         </div>
 
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex flex-wrap items-start gap-2">
                             <span class="crm-chip {{ $venue->is_active ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-500' }}">
                                 {{ $venue->is_active ? 'Active venue' : 'Inactive venue' }}
                             </span>
@@ -97,6 +164,9 @@
                                     />
                                 </div>
                             @endif
+                            <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center px-4 py-2.5">
+                                Save venue setup
+                            </button>
                         </div>
                     </div>
 
@@ -107,26 +177,74 @@
                                     <p class="crm-section-title">Packages</p>
                                     <h3 class="mt-1 text-lg font-semibold text-slate-950">Choose packages first</h3>
                                 </div>
-                                <span class="crm-chip bg-white text-slate-500">{{ $selectedPackages->count() }} selected</span>
-                            </div>
+                                    <span class="crm-chip bg-white text-slate-500" x-text="`${selectedPackages.length} selected`">{{ $selectedPackages->count() }} selected</span>
+                                </div>
 
                             <div class="crm-table-wrap">
-                                <table class="crm-table min-w-[520px]">
+                                <table class="crm-table min-w-[720px]">
                                     <thead>
                                         <tr>
                                             <th>Use</th>
                                             <th>Package</th>
-                                            <th>Services</th>
+                                            <th>Services in this package</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
                                         @foreach ($packages as $package)
+                                            @php
+                                                $packageSelectedServiceIds = collect($selectedPackageServices[$package->id] ?? $packageServiceIds[$package->id] ?? [])
+                                                    ->map(fn ($serviceId) => (int) $serviceId)
+                                                    ->values();
+                                            @endphp
                                             <tr>
                                                 <td>
-                                                    <input type="checkbox" name="package_ids_by_venue[{{ $venue->id }}][]" value="{{ $package->id }}" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked($selectedPackages->contains($package->id))>
+                                                    <input
+                                                        type="checkbox"
+                                                        name="package_ids_by_venue[{{ $venue->id }}][]"
+                                                        value="{{ $package->id }}"
+                                                        class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                                                        @checked($selectedPackages->contains($package->id))
+                                                        @change="syncPackage({{ $package->id }}, $event.target.checked)"
+                                                    >
                                                 </td>
-                                                <td class="font-semibold text-slate-950">{{ $package->name }}</td>
-                                                <td>{{ $package->services->pluck('name')->join(', ') ?: 'No mapped services' }}</td>
+                                                <td class="font-semibold text-slate-950">
+                                                    <div>{{ $package->name }}</div>
+                                                    <div class="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{{ $package->code }}</div>
+                                                </td>
+                                                <td>
+                                                    <div class="space-y-3">
+                                                        <p class="text-sm text-slate-500">Choose the services this employee can use inside {{ $package->name }}. The same service can stay checked in another package too.</p>
+                                                        <div class="grid gap-2 md:grid-cols-2">
+                                                            @forelse ($package->services as $service)
+                                                                <label
+                                                                    class="rounded-[1.1rem] border px-3 py-2 text-sm transition"
+                                                                    :class="hasPackage({{ $package->id }}) ? 'border-cyan-200 bg-white text-slate-700' : 'border-slate-200 bg-slate-100/70 text-slate-400'"
+                                                                >
+                                                                    <span class="flex items-start gap-3">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            name="package_service_ids_by_venue[{{ $venue->id }}][{{ $package->id }}][]"
+                                                                            value="{{ $service->id }}"
+                                                                            class="mt-1 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                                                                            @checked($packageSelectedServiceIds->contains($service->id))
+                                                                            :disabled="! hasPackage({{ $package->id }})"
+                                                                            @change="syncService({{ $package->id }}, {{ $service->id }}, $event.target.checked)"
+                                                                        >
+                                                                        <span>
+                                                                            <span class="block font-semibold text-slate-900">{{ $service->name }}</span>
+                                                                            <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">
+                                                                                {{ Money::formatMinor($service->standard_rate_minor) }}
+                                                                                | {{ strtolower($service->personModeLabel()) }}
+                                                                            </span>
+                                                                        </span>
+                                                                    </span>
+                                                                </label>
+                                                            @empty
+                                                                <p class="text-sm text-slate-500">No services mapped to this package yet.</p>
+                                                            @endforelse
+                                                        </div>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -138,8 +256,8 @@
                             <article class="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-4">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <p class="crm-section-title">Services from packages</p>
-                                        <h3 class="mt-1 text-lg font-semibold text-slate-950">Auto-included</h3>
+                                        <p class="crm-section-title">Venue service access</p>
+                                        <h3 class="mt-1 text-lg font-semibold text-slate-950">Derived from selected packages</h3>
                                     </div>
                                     <span class="crm-chip bg-white text-slate-500">{{ $derivedServiceIds->count() }} included</span>
                                 </div>
@@ -148,7 +266,7 @@
                                     @forelse ($services->whereIn('id', $derivedServiceIds) as $service)
                                         <span class="crm-chip bg-cyan-50 text-cyan-700">{{ $service->name }}</span>
                                     @empty
-                                        <p class="text-sm text-slate-500">No services are being derived yet because no package is selected for this venue.</p>
+                                        <p class="text-sm text-slate-500">No services are being derived yet because no package services are selected for this venue.</p>
                                     @endforelse
                                 </div>
                             </article>
@@ -157,7 +275,7 @@
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
                                         <p class="crm-section-title">Extra service access</p>
-                                        <h3 class="mt-1 text-lg font-semibold text-slate-950">Only add overrides when needed</h3>
+                                        <h3 class="mt-1 text-lg font-semibold text-slate-950">Only add venue-level overrides when needed</h3>
                                     </div>
                                     <span class="crm-chip bg-white text-slate-500">{{ $extraServices->count() }} extra</span>
                                 </div>
@@ -187,6 +305,12 @@
                                 </div>
                             </article>
                         </section>
+                    </div>
+
+                    <div class="mt-5 flex justify-end">
+                        <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center px-4 py-2.5">
+                            Save venue setup
+                        </button>
                     </div>
                 </article>
             @endforeach

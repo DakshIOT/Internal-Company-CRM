@@ -21,7 +21,7 @@
             @method('PUT')
         @endif
 
-        <section class="space-y-6">
+        <section class="space-y-6" x-data="{ personInputMode: @js(old('person_input_mode', $service->person_input_mode ?? 'fixed')) }">
             <article class="crm-panel p-6">
                 <div class="grid gap-5 md:grid-cols-2">
                     <div>
@@ -44,6 +44,68 @@
                             <input type="checkbox" name="is_active" value="1" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked(old('is_active', $service->is_active ?? true))>
                             Keep this service active
                         </label>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid gap-5 md:grid-cols-2">
+                    <div class="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-4">
+                        <p class="crm-section-title">Quantity rule</p>
+                        <div class="mt-4 space-y-3">
+                            <label class="flex items-start gap-3 rounded-[1.1rem] border border-slate-200 bg-white px-4 py-3">
+                                <input
+                                    type="radio"
+                                    name="person_input_mode"
+                                    value="fixed"
+                                    class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                                    x-model="personInputMode"
+                                >
+                                <span>
+                                    <span class="block font-semibold text-slate-900">Person-based service</span>
+                                    <span class="mt-1 block text-sm leading-6 text-slate-500">Admin sets the fixed person count. Employee cannot change it later.</span>
+                                </span>
+                            </label>
+                            <label class="flex items-start gap-3 rounded-[1.1rem] border border-slate-200 bg-white px-4 py-3">
+                                <input
+                                    type="radio"
+                                    name="person_input_mode"
+                                    value="employee"
+                                    class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                                    x-model="personInputMode"
+                                >
+                                <span>
+                                    <span class="block font-semibold text-slate-900">Employee can select persons</span>
+                                    <span class="mt-1 block text-sm leading-6 text-slate-500">The persons input appears in function entry and the employee can type the count there.</span>
+                                </span>
+                            </label>
+                            <label class="flex items-start gap-3 rounded-[1.1rem] border border-slate-200 bg-white px-4 py-3">
+                                <input
+                                    type="radio"
+                                    name="person_input_mode"
+                                    value="none"
+                                    class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                                    x-model="personInputMode"
+                                >
+                                <span>
+                                    <span class="block font-semibold text-slate-900">Flat-rate service</span>
+                                    <span class="mt-1 block text-sm leading-6 text-slate-500">No persons field in employee workflow. Employee will only handle extra charge and notes.</span>
+                                </span>
+                            </label>
+                        </div>
+                        <x-input-error :messages="$errors->get('person_input_mode')" class="mt-2" />
+                    </div>
+
+                    <div class="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-4" x-show="personInputMode === 'fixed'" x-cloak>
+                        <x-input-label for="default_persons" value="Fixed persons" />
+                        <x-text-input
+                            id="default_persons"
+                            name="default_persons"
+                            type="number"
+                            min="1"
+                            :value="old('default_persons', $service->default_persons ?? 1)"
+                            class="crm-input mt-2 w-full"
+                        />
+                        <x-input-error :messages="$errors->get('default_persons')" class="mt-2" />
+                        <p class="mt-3 text-sm leading-6 text-slate-500">This number is locked in for employees when the service appears inside a package.</p>
                     </div>
                 </div>
 
@@ -112,6 +174,9 @@
                 <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-600">
                     <li>Keep names short enough to fit cleanly in mobile function-entry rows later.</li>
                     <li>Rates are stored as integer minor units even though forms show plain decimals.</li>
+                        <li>Choose person-based if the line should multiply by a fixed admin-defined person count.</li>
+                        <li>Choose employee-select if the employee should type the person count during function entry.</li>
+                        <li>Choose flat-rate if employees should not see any persons field for this service.</li>
                     <li>Package selection here only defines where this service appears by default.</li>
                 </ul>
             </article>

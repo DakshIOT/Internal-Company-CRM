@@ -6,6 +6,7 @@
                 ['label' => 'Venues', 'route' => 'admin.master-data.venues.index'],
                 ['label' => 'Services', 'route' => 'admin.master-data.services.index'],
                 ['label' => 'Packages', 'route' => 'admin.master-data.packages.index'],
+                ['label' => 'Print Settings', 'route' => 'admin.master-data.function-print-settings.edit'],
             ] as $item)
                 <a
                     href="{{ route($item['route']) }}"

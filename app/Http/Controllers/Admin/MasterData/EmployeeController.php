@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\MasterData\StoreEmployeeRequest;
 use App\Http\Requests\Admin\MasterData\UpdateEmployeeRequest;
 use App\Models\PackageAssignment;
+use App\Models\PackageServiceAssignment;
 use App\Models\ServiceAssignment;
 use App\Models\User;
 use App\Models\Venue;
@@ -133,6 +134,7 @@ class EmployeeController extends Controller
             $employee->venues()->detach();
             ServiceAssignment::query()->where('user_id', $employee->id)->delete();
             PackageAssignment::query()->where('user_id', $employee->id)->delete();
+            PackageServiceAssignment::query()->where('user_id', $employee->id)->delete();
 
             return;
         }
@@ -155,6 +157,7 @@ class EmployeeController extends Controller
         if ($removedVenueIds !== []) {
             ServiceAssignment::query()->where('user_id', $employee->id)->whereIn('venue_id', $removedVenueIds)->delete();
             PackageAssignment::query()->where('user_id', $employee->id)->whereIn('venue_id', $removedVenueIds)->delete();
+            PackageServiceAssignment::query()->where('user_id', $employee->id)->whereIn('venue_id', $removedVenueIds)->delete();
         }
 
         if (! $employee->supportsFrozenFund()) {

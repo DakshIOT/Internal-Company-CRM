@@ -57,14 +57,20 @@ class ServiceController extends Controller
     public function store(StoreServiceRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $personInputMode = $data['person_input_mode'] ?? Service::PERSON_MODE_FIXED;
 
-        DB::transaction(function () use ($request, $data) {
+        DB::transaction(function () use ($data, $personInputMode) {
             $service = Service::create([
                 'name' => $data['name'],
                 'code' => $data['code'] ?: null,
                 'standard_rate_minor' => Money::toMinor($data['standard_rate']),
+                'uses_persons' => $personInputMode !== Service::PERSON_MODE_NONE,
+                'person_input_mode' => $personInputMode,
+                'default_persons' => $personInputMode === Service::PERSON_MODE_FIXED
+                    ? max(1, (int) ($data['default_persons'] ?? 1))
+                    : null,
                 'notes' => $data['notes'] ?? null,
-                'is_active' => $request->boolean('is_active'),
+                'is_active' => (bool) ($data['is_active'] ?? false),
             ]);
 
             $this->syncPackages($service, $data['package_ids'] ?? []);
@@ -88,14 +94,20 @@ class ServiceController extends Controller
     public function update(UpdateServiceRequest $request, Service $service): RedirectResponse
     {
         $data = $request->validated();
+        $personInputMode = $data['person_input_mode'] ?? Service::PERSON_MODE_FIXED;
 
-        DB::transaction(function () use ($request, $service, $data) {
+        DB::transaction(function () use ($service, $data, $personInputMode) {
             $service->update([
                 'name' => $data['name'],
                 'code' => $data['code'] ?: null,
                 'standard_rate_minor' => Money::toMinor($data['standard_rate']),
+                'uses_persons' => $personInputMode !== Service::PERSON_MODE_NONE,
+                'person_input_mode' => $personInputMode,
+                'default_persons' => $personInputMode === Service::PERSON_MODE_FIXED
+                    ? max(1, (int) ($data['default_persons'] ?? 1))
+                    : null,
                 'notes' => $data['notes'] ?? null,
-                'is_active' => $request->boolean('is_active'),
+                'is_active' => (bool) ($data['is_active'] ?? false),
             ]);
 
             $this->syncPackages($service, $data['package_ids'] ?? []);

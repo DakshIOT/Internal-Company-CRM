@@ -11,9 +11,16 @@ trait AppliesReportFilters
         Builder $query,
         ReportFilters $filters,
         array $searchColumns = ['name', 'notes'],
-        bool $supportsVenue = true
+        bool $supportsVenue = true,
+        bool $requiresUserSelection = false
     ): Builder {
         $model = $query->getModel();
+
+        if ($requiresUserSelection && ! $filters->userId) {
+            $query->whereRaw('1 = 0');
+
+            return $query;
+        }
 
         if ($supportsVenue && $filters->venueId) {
             $query->where($model->qualifyColumn('venue_id'), $filters->venueId);
@@ -52,8 +59,14 @@ trait AppliesReportFilters
         return $query;
     }
 
-    protected function applyFunctionEntryJoinFilters(Builder $query, ReportFilters $filters): Builder
+    protected function applyFunctionEntryJoinFilters(Builder $query, ReportFilters $filters, bool $requiresUserSelection = false): Builder
     {
+        if ($requiresUserSelection && ! $filters->userId) {
+            $query->whereRaw('1 = 0');
+
+            return $query;
+        }
+
         if ($filters->venueId) {
             $query->where('function_entries.venue_id', $filters->venueId);
         }

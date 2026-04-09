@@ -10,6 +10,10 @@ class FunctionServiceLine extends Model
 {
     use HasFactory;
 
+    public const PERSON_MODE_FIXED = 'fixed';
+    public const PERSON_MODE_EMPLOYEE = 'employee';
+    public const PERSON_MODE_NONE = 'none';
+
     protected $fillable = [
         'function_package_id',
         'service_id',
@@ -17,6 +21,8 @@ class FunctionServiceLine extends Model
         'is_selected',
         'item_name_snapshot',
         'rate_minor',
+        'uses_persons',
+        'person_input_mode',
         'persons',
         'extra_charge_minor',
         'notes',
@@ -25,7 +31,18 @@ class FunctionServiceLine extends Model
 
     protected $casts = [
         'is_selected' => 'boolean',
+        'uses_persons' => 'boolean',
     ];
+
+    public function usesPersonsField(): bool
+    {
+        return $this->person_input_mode !== self::PERSON_MODE_NONE;
+    }
+
+    public function allowsEmployeePersonEntry(): bool
+    {
+        return $this->person_input_mode === self::PERSON_MODE_EMPLOYEE;
+    }
 
     public function functionPackage(): BelongsTo
     {

@@ -12,6 +12,7 @@
             ['label' => 'Employees', 'route' => 'admin.master-data.employees.index', 'active' => 'admin.master-data.employees.*'],
             ['label' => 'Services', 'route' => 'admin.master-data.services.index', 'active' => 'admin.master-data.services.*'],
             ['label' => 'Packages', 'route' => 'admin.master-data.packages.index', 'active' => 'admin.master-data.packages.*'],
+            ['label' => 'Print Settings', 'route' => 'admin.master-data.function-print-settings.edit', 'active' => 'admin.master-data.function-print-settings.*'],
             ['label' => 'Profile', 'route' => 'profile.edit', 'active' => 'profile.edit'],
         ]
         : array_values(array_filter([

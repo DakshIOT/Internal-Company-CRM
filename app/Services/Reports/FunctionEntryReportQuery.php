@@ -17,6 +17,8 @@ class FunctionEntryReportQuery
 {
     use AppliesReportFilters;
 
+    protected bool $requiresUserSelection = true;
+
     public function summary(ReportFilters $filters): array
     {
         $summary = $this->filteredQuery($filters)
@@ -41,7 +43,13 @@ class FunctionEntryReportQuery
     public function rows(ReportFilters $filters, int $perPage = 15): LengthAwarePaginator
     {
         return $this->filteredQuery($filters)
-            ->with(['user:id,name,role', 'venue:id,name,code'])
+            ->with([
+                'user:id,name,role',
+                'venue:id,name,code',
+                'attachments' => fn ($query) => $query
+                    ->select(['id', 'attachable_id', 'attachable_type', 'original_name', 'mime_type', 'disk', 'storage_path'])
+                    ->orderBy('id'),
+            ])
             ->withCount(['attachments', 'packages'])
             ->orderByDesc('entry_date')
             ->orderByDesc('id')
@@ -87,7 +95,7 @@ class FunctionEntryReportQuery
             ->groupBy('function_packages.package_id', 'function_packages.name_snapshot')
             ->orderBy('function_packages.name_snapshot');
 
-        $this->applyFunctionEntryJoinFilters($query, $filters);
+        $this->applyFunctionEntryJoinFilters($query, $filters, $this->requiresUserSelection);
 
         if ($filters->packageId) {
             $query->where('function_packages.package_id', $filters->packageId);
@@ -124,7 +132,7 @@ class FunctionEntryReportQuery
             ->groupBy('function_service_lines.service_id', 'function_service_lines.item_name_snapshot')
             ->orderBy('function_service_lines.item_name_snapshot');
 
-        $this->applyFunctionEntryJoinFilters($query, $filters);
+        $this->applyFunctionEntryJoinFilters($query, $filters, $this->requiresUserSelection);
 
         if ($filters->packageId) {
             $query->where('function_packages.package_id', $filters->packageId);
@@ -196,7 +204,7 @@ class FunctionEntryReportQuery
     {
         $query = FunctionEntry::query();
 
-        $this->applySharedFilters($query, $filters, ['name', 'notes'], true);
+        $this->applySharedFilters($query, $filters, ['name', 'notes'], true, $this->requiresUserSelection);
 
         if ($filters->packageId) {
             $query->whereHas('packages', function (Builder $packageQuery) use ($filters) {

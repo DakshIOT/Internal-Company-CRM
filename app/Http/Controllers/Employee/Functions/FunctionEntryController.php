@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Employee\Functions\FunctionEntryRequest;
 use App\Models\FunctionEntry;
 use App\Models\Package;
+use App\Models\PrintSetting;
 use App\Services\Exports\EmployeeRegisterExportService;
 use App\Services\Files\AttachmentService;
 use App\Services\Functions\FunctionEntryTotalsService;
@@ -85,6 +86,58 @@ class FunctionEntryController extends Controller
             )),
             'function-register-export.xlsx'
         );
+    }
+
+    public function printDate(Request $request, string $entryDate): View
+    {
+        $this->authorize('viewAny', FunctionEntry::class);
+
+        $user = $request->user();
+        $venueId = $this->selectedVenueId($request);
+        $venue = $user->venues()->whereKey($venueId)->firstOrFail();
+
+        try {
+            $printDate = Carbon::createFromFormat('Y-m-d', $entryDate)->toDateString();
+        } catch (\Throwable) {
+            abort(404);
+        }
+
+        $entries = FunctionEntry::query()
+            ->forWorkspace($user, $venueId)
+            ->whereDate('entry_date', $printDate)
+            ->with([
+                'venue',
+                'attachments',
+                'packages.serviceLines',
+                'extraCharges.attachments',
+                'installments.attachments',
+                'discounts.attachments',
+            ])
+            ->withCount(['attachments', 'packages', 'extraCharges', 'installments', 'discounts'])
+            ->orderBy('id')
+            ->get();
+
+        abort_if($entries->isEmpty(), 404);
+
+        $dayTotals = [
+            'entry_count' => $entries->count(),
+            'package_total_minor' => (int) $entries->sum('package_total_minor'),
+            'extra_charge_total_minor' => (int) $entries->sum('extra_charge_total_minor'),
+            'discount_total_minor' => (int) $entries->sum('discount_total_minor'),
+            'function_total_minor' => (int) $entries->sum('function_total_minor'),
+            'paid_total_minor' => (int) $entries->sum('paid_total_minor'),
+            'pending_total_minor' => (int) $entries->sum('pending_total_minor'),
+            'frozen_fund_minor' => (int) $entries->sum('frozen_fund_minor'),
+            'net_total_after_frozen_fund_minor' => (int) $entries->sum('net_total_after_frozen_fund_minor'),
+        ];
+
+        return view('employee.functions.print-date', [
+            'currentVenue' => $venue,
+            'dayTotals' => $dayTotals,
+            'entries' => $entries,
+            'printDate' => Carbon::parse($printDate),
+            'printSettings' => PrintSetting::current(),
+        ]);
     }
 
     public function create(Request $request): View

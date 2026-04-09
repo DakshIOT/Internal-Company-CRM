@@ -3,6 +3,8 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Package;
+use App\Models\PackageServiceAssignment;
+use App\Models\PrintSetting;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\Venue;
@@ -111,6 +113,7 @@ class MasterDataTest extends TestCase
             'name' => 'Ceiling Lights',
             'code' => 'SERV-CL',
             'standard_rate' => '275.00',
+            'person_input_mode' => 'employee',
             'notes' => 'Lighting setup',
             'is_active' => '1',
             'package_ids' => [$packageA->id, $packageB->id],
@@ -127,6 +130,11 @@ class MasterDataTest extends TestCase
         $this->assertDatabaseHas('package_service', [
             'package_id' => $packageB->id,
             'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('services', [
+            'id' => $service->id,
+            'person_input_mode' => 'employee',
+            'default_persons' => null,
         ]);
     }
 
@@ -174,6 +182,7 @@ class MasterDataTest extends TestCase
         $venueB = Venue::factory()->create();
         $service = Service::factory()->create();
         $package = Package::factory()->create();
+        $package->services()->attach($service->id, ['sort_order' => 1]);
 
         $response = $this->actingAs($admin)->put(route('admin.master-data.employees.assignments.update', $employee), [
             'venue_ids' => [$venueA->id, $venueB->id],
@@ -187,6 +196,11 @@ class MasterDataTest extends TestCase
             ],
             'package_ids_by_venue' => [
                 $venueA->id => [$package->id],
+            ],
+            'package_service_ids_by_venue' => [
+                $venueA->id => [
+                    $package->id => [$service->id],
+                ],
             ],
         ]);
 
@@ -212,6 +226,12 @@ class MasterDataTest extends TestCase
             'venue_id' => $venueA->id,
             'package_id' => $package->id,
         ]);
+        $this->assertDatabaseHas('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venueA->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
     }
 
     public function test_selected_packages_derive_service_access_in_employee_setup_workspace(): void
@@ -232,6 +252,11 @@ class MasterDataTest extends TestCase
             'venue_ids' => [$venue->id],
             'package_ids_by_venue' => [
                 $venue->id => [$package->id],
+            ],
+            'package_service_ids_by_venue' => [
+                $venue->id => [
+                    $package->id => [$serviceA->id, $serviceB->id],
+                ],
             ],
             'service_ids_by_venue' => [
                 $venue->id => [$extraService->id],
@@ -260,6 +285,64 @@ class MasterDataTest extends TestCase
             'venue_id' => $venue->id,
             'service_id' => $extraService->id,
         ]);
+        $this->assertDatabaseHas('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $serviceA->id,
+        ]);
+    }
+
+    public function test_same_service_can_be_assigned_in_multiple_packages_for_the_same_employee_and_venue(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeB()->create();
+        $venue = Venue::factory()->create();
+        $sharedService = Service::factory()->create();
+        $packageA = Package::factory()->create();
+        $packageB = Package::factory()->create();
+
+        $packageA->services()->attach($sharedService->id, ['sort_order' => 1]);
+        $packageB->services()->attach($sharedService->id, ['sort_order' => 1]);
+
+        $response = $this->actingAs($admin)->put(route('admin.master-data.employees.assignments.update', $employee), [
+            'venue_ids' => [$venue->id],
+            'package_ids_by_venue' => [
+                $venue->id => [$packageA->id, $packageB->id],
+            ],
+            'package_service_ids_by_venue' => [
+                $venue->id => [
+                    $packageA->id => [$sharedService->id],
+                    $packageB->id => [$sharedService->id],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        $this->assertDatabaseHas('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $packageA->id,
+            'service_id' => $sharedService->id,
+        ]);
+        $this->assertDatabaseHas('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $packageB->id,
+            'service_id' => $sharedService->id,
+        ]);
+        $this->assertSame(1, PackageServiceAssignment::query()
+            ->where('user_id', $employee->id)
+            ->where('venue_id', $venue->id)
+            ->where('service_id', $sharedService->id)
+            ->distinct('service_id')
+            ->count('service_id'));
+        $this->assertDatabaseHas('service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'service_id' => $sharedService->id,
+        ]);
     }
 
     public function test_non_type_a_employee_cannot_persist_frozen_fund_values(): void
@@ -282,5 +365,21 @@ class MasterDataTest extends TestCase
             'venue_id' => $venue->id,
             'frozen_fund_minor' => 0,
         ]);
+    }
+
+    public function test_admin_can_update_function_print_settings(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $response = $this->actingAs($admin)->put(route('admin.master-data.function-print-settings.update'), [
+            'function_terms_and_conditions' => "1. Terms updated.\n2. Print only after review.",
+        ]);
+
+        $response->assertRedirect(route('admin.master-data.function-print-settings.edit'));
+
+        $this->assertSame(
+            "1. Terms updated.\n2. Print only after review.",
+            PrintSetting::current()->function_terms_and_conditions
+        );
     }
 }

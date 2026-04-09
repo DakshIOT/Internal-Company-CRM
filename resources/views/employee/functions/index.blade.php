@@ -170,7 +170,17 @@
                                     <td class="font-semibold text-slate-950">{{ Money::formatMinor($dateFrozenFund) }}</td>
                                 @endif
                                 <td class="font-semibold text-slate-950">{{ Money::formatMinor($dateNetTotal) }}</td>
-                                <td class="crm-print-hidden"></td>
+                                <td class="crm-print-hidden">
+                                    <div class="flex justify-end">
+                                        <a
+                                            href="{{ route('employee.functions.print-date', ['entryDate' => $date]) }}"
+                                            target="_blank"
+                                            class="crm-button crm-button-secondary px-4 py-2"
+                                        >
+                                            Print date
+                                        </a>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>

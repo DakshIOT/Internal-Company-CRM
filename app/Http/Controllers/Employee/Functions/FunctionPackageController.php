@@ -8,6 +8,7 @@ use App\Http\Requests\Employee\Functions\FunctionPackageRequest;
 use App\Models\FunctionEntry;
 use App\Models\FunctionPackage;
 use App\Models\Package;
+use App\Models\PackageServiceAssignment;
 use App\Models\Service;
 use App\Models\ServiceAssignment;
 use App\Services\Functions\FunctionEntryTotalsService;
@@ -47,9 +48,26 @@ class FunctionPackageController extends Controller
                 ->where('venue_id', $functionEntry->venue_id)
                 ->pluck('service_id');
 
+            $packageSpecificServiceIds = PackageServiceAssignment::query()
+                ->where('user_id', $request->user()->id)
+                ->where('venue_id', $functionEntry->venue_id)
+                ->where('package_id', $package->id)
+                ->pluck('service_id');
+
             $services = $package->services()
-                ->whereIn('services.id', $assignedServiceIds)
-                ->get(['services.id', 'services.name', 'services.standard_rate_minor']);
+                ->when(
+                    $packageSpecificServiceIds->isNotEmpty(),
+                    fn ($query) => $query->whereIn('services.id', $packageSpecificServiceIds),
+                    fn ($query) => $query->whereIn('services.id', $assignedServiceIds)
+                )
+                ->get([
+                    'services.id',
+                    'services.name',
+                    'services.standard_rate_minor',
+                    'services.uses_persons',
+                    'services.person_input_mode',
+                    'services.default_persons',
+                ]);
 
             if ($services->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -58,11 +76,20 @@ class FunctionPackageController extends Controller
             }
 
             $services->each(function (Service $service, int $index) use ($functionPackage) {
+                $personInputMode = $service->person_input_mode ?: ($service->uses_persons ? Service::PERSON_MODE_FIXED : Service::PERSON_MODE_NONE);
+
                 $functionPackage->serviceLines()->create([
                     'service_id' => $service->id,
                     'sort_order' => $index + 1,
                     'item_name_snapshot' => $service->name,
                     'rate_minor' => $service->standard_rate_minor,
+                    'uses_persons' => $personInputMode !== Service::PERSON_MODE_NONE,
+                    'person_input_mode' => $personInputMode,
+                    'persons' => match ($personInputMode) {
+                        Service::PERSON_MODE_FIXED => (int) ($service->default_persons ?? 1),
+                        Service::PERSON_MODE_EMPLOYEE => 1,
+                        default => 0,
+                    },
                 ]);
             });
 
@@ -90,7 +117,13 @@ class FunctionPackageController extends Controller
                     continue;
                 }
 
-                $persons = (int) ($payload['persons'] ?? 0);
+                $personInputMode = $serviceLine->person_input_mode
+                    ?: ($serviceLine->uses_persons ? Service::PERSON_MODE_FIXED : Service::PERSON_MODE_NONE);
+                $persons = match ($personInputMode) {
+                    Service::PERSON_MODE_FIXED => (int) $serviceLine->persons,
+                    Service::PERSON_MODE_EMPLOYEE => max(0, (int) ($payload['persons'] ?? 0)),
+                    default => 0,
+                };
                 $rateMinor = (int) $serviceLine->rate_minor;
                 $extraChargeMinor = Money::toMinor($payload['extra_charge'] ?? 0);
 
@@ -100,7 +133,7 @@ class FunctionPackageController extends Controller
                     'rate_minor' => $rateMinor,
                     'extra_charge_minor' => $extraChargeMinor,
                     'notes' => $payload['notes'] ?? null,
-                    'line_total_minor' => $this->totalsService->calculateLineTotalMinor($persons, $rateMinor, $extraChargeMinor),
+                    'line_total_minor' => $this->totalsService->calculateLineTotalMinor($personInputMode, $persons, $rateMinor, $extraChargeMinor),
                 ]);
             }
 

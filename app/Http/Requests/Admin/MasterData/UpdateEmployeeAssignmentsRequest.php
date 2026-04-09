@@ -24,6 +24,10 @@ class UpdateEmployeeAssignmentsRequest extends FormRequest
             'package_ids_by_venue' => ['nullable', 'array'],
             'package_ids_by_venue.*' => ['nullable', 'array'],
             'package_ids_by_venue.*.*' => ['integer', 'exists:packages,id'],
+            'package_service_ids_by_venue' => ['nullable', 'array'],
+            'package_service_ids_by_venue.*' => ['nullable', 'array'],
+            'package_service_ids_by_venue.*.*' => ['nullable', 'array'],
+            'package_service_ids_by_venue.*.*.*' => ['integer', 'exists:services,id'],
         ];
     }
 }

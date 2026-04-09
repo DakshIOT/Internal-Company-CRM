@@ -15,6 +15,7 @@ abstract class AbstractAmountReportQuery
 
     protected string $modelClass;
     protected bool $supportsVenue = true;
+    protected bool $requiresUserSelection = false;
     protected array $searchColumns = ['name', 'notes'];
     protected array $with = ['user:id,name,role', 'venue:id,name,code'];
 
@@ -59,8 +60,20 @@ abstract class AbstractAmountReportQuery
 
     protected function rowQuery(ReportFilters $filters): Builder
     {
+        $attachmentColumns = [
+            'id',
+            'attachable_id',
+            'attachable_type',
+            'original_name',
+            'mime_type',
+            'disk',
+            'storage_path',
+        ];
+
         return $this->filteredQuery($filters)
-            ->with($this->with)
+            ->with(array_merge($this->with, [
+                'attachments' => fn ($query) => $query->select($attachmentColumns)->orderBy('id'),
+            ]))
             ->withCount('attachments');
     }
 
@@ -69,7 +82,13 @@ abstract class AbstractAmountReportQuery
         /** @var Builder $query */
         $query = ($this->modelClass)::query();
 
-        return $this->applySharedFilters($query, $filters, $this->searchColumns, $this->supportsVenue);
+        return $this->applySharedFilters(
+            $query,
+            $filters,
+            $this->searchColumns,
+            $this->supportsVenue,
+            $this->requiresUserSelection
+        );
     }
 
     protected function summarySheetRows(ReportFilters $filters): array

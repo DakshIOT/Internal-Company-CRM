@@ -14,10 +14,11 @@ class ReportIndexController extends Controller
     public function __invoke(ReportFilterRequest $request, ReportFilterOptionsService $optionsService): View|RedirectResponse
     {
         $filters = $request->filters();
+        $selectedModule = $filters->module ?: ReportModule::FUNCTIONS;
 
-        if ($filters->module) {
+        if ($filters->hasEmployeeScope()) {
             return redirect()->route(
-                ReportModule::routeName($filters->module),
+                ReportModule::routeName($selectedModule),
                 collect($filters->query())->except('module')->all()
             );
         }
@@ -25,7 +26,7 @@ class ReportIndexController extends Controller
         return view('admin.reports.index', [
             'filters' => $filters,
             'filterOptions' => $optionsService->forFilters($filters),
-            'reportLinks' => collect(ReportModule::all())->map(function (string $module) use ($filters) {
+            'reportLinks' => collect(ReportModule::employeeScoped())->map(function (string $module) use ($filters) {
                 return [
                     'label' => ReportModule::label($module),
                     'description' => 'Open filtered rows, totals, and export workbook.',

@@ -7,7 +7,10 @@ use App\Models\Attachment;
 use App\Models\FunctionEntry;
 use App\Models\FunctionExtraCharge;
 use App\Models\Package;
+use App\Models\PackageServiceAssignment;
+use App\Models\PrintSetting;
 use App\Models\Service;
+use App\Models\ServiceAssignment;
 use App\Models\User;
 use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -82,8 +85,18 @@ class FunctionEntryTest extends TestCase
         $venue = Venue::factory()->create();
         $this->assignEmployeeToVenue($employee, $venue, 15000);
 
-        $serviceA = Service::factory()->create(['standard_rate_minor' => 10000]);
-        $serviceB = Service::factory()->create(['standard_rate_minor' => 5000]);
+        $serviceA = Service::factory()->create([
+            'standard_rate_minor' => 10000,
+            'uses_persons' => true,
+            'person_input_mode' => 'fixed',
+            'default_persons' => 2,
+        ]);
+        $serviceB = Service::factory()->create([
+            'standard_rate_minor' => 5000,
+            'uses_persons' => true,
+            'person_input_mode' => 'fixed',
+            'default_persons' => 1,
+        ]);
         $package = Package::factory()->create();
         $package->services()->attach([
             $serviceA->id => ['sort_order' => 1],
@@ -125,14 +138,12 @@ class FunctionEntryTest extends TestCase
                 'service_lines' => [
                     $lineA->id => [
                         'is_selected' => '1',
-                        'persons' => 2,
                         'rate' => '100.00',
                         'extra_charge' => '25.00',
                         'notes' => 'Primary service',
                     ],
                     $lineB->id => [
                         'is_selected' => '1',
-                        'persons' => 1,
                         'rate' => '50.00',
                         'extra_charge' => '0.00',
                         'notes' => 'Secondary service',
@@ -182,6 +193,204 @@ class FunctionEntryTest extends TestCase
         $this->assertSame(15500, (int) $functionEntry->pending_total_minor);
         $this->assertSame(15000, (int) $functionEntry->frozen_fund_minor);
         $this->assertSame(10500, (int) $functionEntry->net_total_after_frozen_fund_minor);
+    }
+
+    public function test_employee_can_enter_persons_for_employee_select_service_mode(): void
+    {
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $service = Service::factory()->create([
+            'standard_rate_minor' => 9000,
+            'uses_persons' => true,
+            'person_input_mode' => 'employee',
+            'default_persons' => null,
+        ]);
+        $package = Package::factory()->create();
+        $package->services()->attach($service->id, ['sort_order' => 1]);
+
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.store'), [
+                'entry_date' => '2026-03-31',
+                'name' => 'Editable Persons Test',
+            ])->assertRedirect();
+
+        $functionEntry = FunctionEntry::firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.packages.store', $functionEntry), [
+                'package_id' => $package->id,
+            ])->assertRedirect();
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+        $line = $functionPackage->serviceLines->firstOrFail();
+
+        $this->assertSame('employee', $line->person_input_mode);
+        $this->assertSame(1, (int) $line->persons);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->put(route('employee.functions.packages.update', [$functionEntry, $functionPackage]), [
+                'service_lines' => [
+                    $line->id => [
+                        'is_selected' => '1',
+                        'persons' => '3',
+                        'rate' => '90.00',
+                        'extra_charge' => '15.00',
+                        'notes' => 'Employee entered persons',
+                    ],
+                ],
+            ])->assertRedirect();
+
+        $line->refresh();
+        $functionEntry->refresh();
+
+        $this->assertSame(3, (int) $line->persons);
+        $this->assertSame(28500, (int) $line->line_total_minor);
+        $this->assertSame(28500, (int) $functionEntry->package_total_minor);
+    }
+
+    public function test_flat_rate_service_mode_ignores_persons_and_uses_single_rate(): void
+    {
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $service = Service::factory()->create([
+            'standard_rate_minor' => 7000,
+            'uses_persons' => false,
+            'person_input_mode' => 'none',
+            'default_persons' => null,
+        ]);
+        $package = Package::factory()->create();
+        $package->services()->attach($service->id, ['sort_order' => 1]);
+
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.store'), [
+                'entry_date' => '2026-04-01',
+                'name' => 'Flat Rate Test',
+            ])->assertRedirect();
+
+        $functionEntry = FunctionEntry::firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.packages.store', $functionEntry), [
+                'package_id' => $package->id,
+            ])->assertRedirect();
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+        $line = $functionPackage->serviceLines->firstOrFail();
+
+        $this->assertSame('none', $line->person_input_mode);
+        $this->assertSame(0, (int) $line->persons);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->put(route('employee.functions.packages.update', [$functionEntry, $functionPackage]), [
+                'service_lines' => [
+                    $line->id => [
+                        'is_selected' => '1',
+                        'persons' => '9',
+                        'rate' => '70.00',
+                        'extra_charge' => '20.00',
+                        'notes' => 'Flat rate row',
+                    ],
+                ],
+            ])->assertRedirect();
+
+        $line->refresh();
+        $functionEntry->refresh();
+
+        $this->assertSame(0, (int) $line->persons);
+        $this->assertSame(9000, (int) $line->line_total_minor);
+        $this->assertSame(9000, (int) $functionEntry->package_total_minor);
+    }
+
+    public function test_package_add_uses_package_specific_service_assignments_when_present(): void
+    {
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue, 10000);
+
+        $serviceA = Service::factory()->create(['name' => 'Photography']);
+        $serviceB = Service::factory()->create(['name' => 'Decor']);
+        $package = Package::factory()->create();
+        $package->services()->attach([
+            $serviceA->id => ['sort_order' => 1],
+            $serviceB->id => ['sort_order' => 2],
+        ]);
+
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+
+        ServiceAssignment::query()->insert([
+            [
+                'user_id' => $employee->id,
+                'venue_id' => $venue->id,
+                'service_id' => $serviceA->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'user_id' => $employee->id,
+                'venue_id' => $venue->id,
+                'service_id' => $serviceB->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        PackageServiceAssignment::query()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $serviceA->id,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.store'), [
+                'entry_date' => '2026-03-30',
+                'name' => 'Scoped Package Service Test',
+            ])->assertRedirect();
+
+        $functionEntry = FunctionEntry::firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.packages.store', $functionEntry), [
+                'package_id' => $package->id,
+            ])->assertRedirect();
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+
+        $this->assertCount(1, $functionPackage->serviceLines);
+        $this->assertSame($serviceA->id, (int) $functionPackage->serviceLines->first()->service_id);
     }
 
     public function test_frozen_fund_is_not_applied_for_employee_b(): void
@@ -378,6 +587,133 @@ class FunctionEntryTest extends TestCase
             ->assertOk()
             ->assertSee('Counted Function')
             ->assertSeeInOrder(['Counted Function', '1', '1', '1', '1']);
+    }
+
+    public function test_employee_can_open_date_print_view_with_child_rows_terms_signatures_and_attachment_links(): void
+    {
+        Storage::fake('local');
+
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create(['name' => 'Garden Court']);
+        $this->assignEmployeeToVenue($employee, $venue, 12000);
+
+        $service = Service::factory()->create(['name' => 'Photography']);
+        $package = Package::factory()->create([
+            'name' => 'Wedding Prime',
+            'code' => 'WED-PRIME',
+        ]);
+        $package->services()->attach($service->id, ['sort_order' => 1]);
+
+        $entry = FunctionEntry::query()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-30',
+            'name' => 'March Wedding',
+            'notes' => 'Print all details',
+            'package_total_minor' => 24000,
+            'extra_charge_total_minor' => 2500,
+            'discount_total_minor' => 1000,
+            'function_total_minor' => 25500,
+            'paid_total_minor' => 8000,
+            'pending_total_minor' => 17500,
+            'frozen_fund_minor' => 12000,
+            'net_total_after_frozen_fund_minor' => 13500,
+        ]);
+
+        $functionPackage = $entry->packages()->create([
+            'package_id' => $package->id,
+            'name_snapshot' => 'Wedding Prime',
+            'code_snapshot' => 'WED-PRIME',
+            'total_minor' => 24000,
+        ]);
+
+        $functionPackage->serviceLines()->create([
+            'service_id' => $service->id,
+            'sort_order' => 1,
+            'is_selected' => true,
+            'item_name_snapshot' => 'Photography',
+            'rate_minor' => 12000,
+            'person_input_mode' => 'fixed',
+            'persons' => 2,
+            'extra_charge_minor' => 0,
+            'notes' => 'Lead crew',
+            'line_total_minor' => 24000,
+        ]);
+
+        $extraCharge = $entry->extraCharges()->create([
+            'entry_date' => '2026-03-30',
+            'name' => 'Flowers',
+            'mode' => 'cash',
+            'amount_minor' => 2500,
+            'note' => 'Fresh decor flowers',
+        ]);
+
+        $installment = $entry->installments()->create([
+            'entry_date' => '2026-03-30',
+            'name' => 'Advance',
+            'mode' => 'bank',
+            'amount_minor' => 8000,
+            'note' => 'First payment',
+        ]);
+
+        $discount = $entry->discounts()->create([
+            'entry_date' => '2026-03-30',
+            'name' => 'Promo',
+            'mode' => 'cash',
+            'amount_minor' => 1000,
+            'note' => 'Manual offer',
+        ]);
+
+        $baseAttachment = $entry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/base-brief.pdf',
+            'original_name' => 'base-brief.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1200,
+        ]);
+
+        $extraAttachment = $extraCharge->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/extra-proof.pdf',
+            'original_name' => 'extra-proof.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 900,
+        ]);
+
+        $installment->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/installment-slip.pdf',
+            'original_name' => 'installment-slip.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 800,
+        ]);
+
+        PrintSetting::current()->update([
+            'function_terms_and_conditions' => "1. Dummy terms.\n2. Manager sign after review.",
+        ]);
+
+        $response = $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.print-date', ['entryDate' => '2026-03-30']));
+
+        $response->assertOk()
+            ->assertSee('Date Print Sheet')
+            ->assertSee('March Wedding')
+            ->assertSee('Wedding Prime')
+            ->assertSee('Photography')
+            ->assertSee('Flowers')
+            ->assertSee('Advance')
+            ->assertSee('Promo')
+            ->assertSee('Dummy terms.')
+            ->assertSee('Customer Signature')
+            ->assertSee('Manager Signature')
+            ->assertSee('base-brief.pdf')
+            ->assertSee('extra-proof.pdf')
+            ->assertSee(route('employee.functions.attachments.download', [$entry, $baseAttachment]), false)
+            ->assertSee(route('employee.functions.attachments.download', [$entry, $extraAttachment]), false);
     }
 
     private function assignEmployeeToVenue(User $employee, Venue $venue, int $frozenFundMinor = 0): void

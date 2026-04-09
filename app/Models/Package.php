@@ -41,6 +41,11 @@ class Package extends Model
         return $this->hasMany(PackageAssignment::class);
     }
 
+    public function serviceAssignments(): HasMany
+    {
+        return $this->hasMany(PackageServiceAssignment::class);
+    }
+
     public function functionPackages(): HasMany
     {
         return $this->hasMany(FunctionPackage::class);

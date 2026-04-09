@@ -21,7 +21,13 @@ class ReportFilterRequest extends FormRequest
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'venue_id' => ['nullable', 'integer', 'exists:venues,id'],
-            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+            'user_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where(function ($query) {
+                    $query->whereIn('role', Role::employeeRoles());
+                }),
+            ],
             'employee_role' => ['nullable', Rule::in(Role::all())],
             'module' => ['nullable', Rule::in(ReportModule::all())],
             'vendor_id' => ['nullable', 'integer', 'exists:venue_vendors,id'],

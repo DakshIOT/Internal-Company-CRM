@@ -30,6 +30,9 @@ class FunctionEntryWorkflowTest extends TestCase
 
         $service = Service::factory()->create([
             'standard_rate_minor' => 25000,
+            'person_input_mode' => 'employee',
+            'uses_persons' => true,
+            'default_persons' => null,
         ]);
         $package = Package::factory()->create();
         $package->services()->attach($service->id, ['sort_order' => 1]);

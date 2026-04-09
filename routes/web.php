@@ -6,12 +6,15 @@ use App\Http\Controllers\Access\VenueSelectionController;
 use App\Http\Controllers\Admin\Ledgers\AdminIncomeEntryController;
 use App\Http\Controllers\Admin\MasterData\EmployeeAssignmentController;
 use App\Http\Controllers\Admin\MasterData\EmployeeController;
+use App\Http\Controllers\Admin\MasterData\FunctionPrintSettingController;
 use App\Http\Controllers\Admin\MasterData\PackageController;
 use App\Http\Controllers\Admin\Reports\AdminIncomeReportController;
+use App\Http\Controllers\Admin\Reports\AllEmployeeReportsExportController;
 use App\Http\Controllers\Admin\Reports\DailyBillingReportController;
 use App\Http\Controllers\Admin\Reports\DailyIncomeReportController;
 use App\Http\Controllers\Admin\Reports\DashboardController as AdminReportsDashboardController;
 use App\Http\Controllers\Admin\Reports\FunctionEntryReportController;
+use App\Http\Controllers\Admin\Reports\ReportAttachmentController;
 use App\Http\Controllers\Admin\Reports\ReportIndexController;
 use App\Http\Controllers\Admin\MasterData\ServiceController;
 use App\Http\Controllers\Admin\MasterData\VenueController;
@@ -56,6 +59,7 @@ Route::middleware(['auth', 'role:admin'])
             ->name('reports.')
             ->group(function () {
                 Route::get('/', ReportIndexController::class)->name('index');
+                Route::get('/export-all', AllEmployeeReportsExportController::class)->name('export-all');
                 Route::get('/functions', [FunctionEntryReportController::class, 'index'])->name('functions.index');
                 Route::get('/functions/export', [FunctionEntryReportController::class, 'export'])->name('functions.export');
                 Route::get('/daily-income', [DailyIncomeReportController::class, 'index'])->name('daily-income.index');
@@ -66,6 +70,8 @@ Route::middleware(['auth', 'role:admin'])
                 Route::get('/vendor-entries/export', [VendorEntryReportController::class, 'export'])->name('vendor-entries.export');
                 Route::get('/admin-income', [AdminIncomeReportController::class, 'index'])->name('admin-income.index');
                 Route::get('/admin-income/export', [AdminIncomeReportController::class, 'export'])->name('admin-income.export');
+                Route::get('/attachments/{attachment}/preview', [ReportAttachmentController::class, 'preview'])->name('attachments.preview');
+                Route::get('/attachments/{attachment}', [ReportAttachmentController::class, 'download'])->name('attachments.download');
             });
 
         Route::prefix('master-data')
@@ -81,6 +87,10 @@ Route::middleware(['auth', 'role:admin'])
                     ->name('employees.assignments.update');
                 Route::resource('services', ServiceController::class)->except('show');
                 Route::resource('packages', PackageController::class)->except('show');
+                Route::get('/function-print-settings', [FunctionPrintSettingController::class, 'edit'])
+                    ->name('function-print-settings.edit');
+                Route::put('/function-print-settings', [FunctionPrintSettingController::class, 'update'])
+                    ->name('function-print-settings.update');
             });
     });
 
@@ -140,6 +150,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
 
         Route::get('/functions/export', [FunctionEntryController::class, 'export'])
             ->name('functions.export');
+        Route::get('/functions/print/date/{entryDate}', [FunctionEntryController::class, 'printDate'])
+            ->name('functions.print-date');
         Route::resource('functions', FunctionEntryController::class)
             ->parameters(['functions' => 'functionEntry']);
         Route::post('/functions/{functionEntry}/packages', [FunctionPackageController::class, 'store'])

@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 class VendorEntryReportQuery extends AbstractAmountReportQuery
 {
     protected string $modelClass = VendorEntry::class;
+    protected bool $requiresUserSelection = true;
     protected array $searchColumns = ['name', 'notes', 'vendor_name_snapshot'];
     protected array $with = ['user:id,name,role', 'venue:id,name,code', 'venueVendor:id,name'];
 
