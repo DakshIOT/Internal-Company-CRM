@@ -7,6 +7,7 @@
     $entryTotal = $entries instanceof Paginator ? $entries->total() : $entryCollection->count();
     $showVendors = ! empty($vendorOptions) && count($vendorOptions);
     $colspan = $showVendors ? 7 : 6;
+    $printDateRoute = $printDateRoute ?? null;
     $printQuery = array_filter([
         'search' => $filters['search'] ?? null,
         'entry_date' => $filters['entry_date'] ?? null,
@@ -141,7 +142,15 @@
                                     Date Total {{ \Illuminate\Support\Carbon::parse($date)->format('d M Y') }}
                                 </td>
                                 <td class="font-semibold text-slate-950">{{ Money::formatMinor($dateTotal) }}</td>
-                                <td class="crm-print-hidden"></td>
+                                <td class="crm-print-hidden">
+                                    @if ($printDateRoute)
+                                        <div class="flex justify-end">
+                                            <a href="{{ route($printDateRoute, ['entryDate' => $date]) }}" target="_blank" class="crm-button crm-button-secondary px-4 py-2">
+                                                Print date
+                                            </a>
+                                        </div>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr>

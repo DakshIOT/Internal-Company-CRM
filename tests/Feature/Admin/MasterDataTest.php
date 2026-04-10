@@ -8,6 +8,8 @@ use App\Models\PrintSetting;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\Venue;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -138,22 +140,15 @@ class MasterDataTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_create_type_a_employee_with_initial_venues_and_frozen_fund(): void
+    public function test_admin_can_create_type_a_employee_and_continue_to_setup_workspace(): void
     {
         $admin = User::factory()->admin()->create();
-        $venueA = Venue::factory()->create();
-        $venueB = Venue::factory()->create();
 
         $response = $this->actingAs($admin)->post(route('admin.master-data.employees.store'), [
             'name' => 'Employee A',
             'email' => 'employee.a@example.test',
             'role' => 'employee_a',
             'is_active' => '1',
-            'venue_ids' => [$venueA->id, $venueB->id],
-            'frozen_funds' => [
-                $venueA->id => '1500.00',
-                $venueB->id => '250.50',
-            ],
             'password' => 'Password@123',
             'password_confirmation' => 'Password@123',
         ]);
@@ -161,16 +156,159 @@ class MasterDataTest extends TestCase
         $employee = User::query()->where('email', 'employee.a@example.test')->firstOrFail();
 
         $response->assertRedirect(route('admin.master-data.employees.assignments.edit', $employee));
+        $this->assertDatabaseCount('user_venue', 0);
+    }
+
+    public function test_admin_can_build_employee_setup_workspace_with_new_venue_package_and_service(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+
+        $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.venues.store', $employee), [
+            'name' => 'Garden Court',
+            'code' => 'GC-01',
+            'vendor_slots' => [
+                1 => 'Vendor 1',
+                2 => 'Vendor 2',
+                3 => 'Vendor 3',
+                4 => 'Vendor 4',
+            ],
+            'frozen_fund' => '450.00',
+        ])->assertRedirect();
+
+        $venue = Venue::query()->where('code', 'GC-01')->firstOrFail();
 
         $this->assertDatabaseHas('user_venue', [
             'user_id' => $employee->id,
-            'venue_id' => $venueA->id,
-            'frozen_fund_minor' => 150000,
+            'venue_id' => $venue->id,
+            'frozen_fund_minor' => 45000,
         ]);
+
+        $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.packages.store', [$employee, $venue]), [
+            'name' => 'Corporate Lite',
+            'code' => 'CORP-LITE',
+            'description' => 'New venue package',
+        ])->assertRedirect();
+
+        $package = Package::query()->where('code', 'CORP-LITE')->firstOrFail();
+
+        $this->assertDatabaseHas('package_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.services.store', [$employee, $venue, $package]), [
+            'name' => 'Lighting Rig',
+            'code' => 'LIGHT-RIG',
+            'standard_rate' => '125.00',
+            'person_input_mode' => 'employee',
+            'notes' => 'Adjustable staff count',
+            'attachments' => [
+                UploadedFile::fake()->create('service-guide.pdf', 40, 'application/pdf'),
+            ],
+        ])->assertRedirect();
+
+        $service = Service::query()->where('code', 'LIGHT-RIG')->firstOrFail();
+
+        $this->assertDatabaseHas('package_service', [
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('attachments', [
+            'attachable_type' => Service::class,
+            'attachable_id' => $service->id,
+            'original_name' => 'service-guide.pdf',
+        ]);
+    }
+
+    public function test_admin_workspace_rejects_unsupported_service_attachment_types(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create();
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+                'package' => $package->id,
+            ]))
+            ->post(route('admin.master-data.employees.assignments.services.store', [$employee, $venue, $package]), [
+                'name' => 'Invalid Attachment Service',
+                'standard_rate' => '50.00',
+                'person_input_mode' => 'none',
+                'attachments' => [
+                    UploadedFile::fake()->create('rules.txt', 4, 'text/plain'),
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('services', [
+            'name' => 'Invalid Attachment Service',
+        ]);
+    }
+
+    public function test_admin_can_attach_existing_venue_package_and_service_inside_employee_setup_workspace(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeB()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create();
+        $service = Service::factory()->create();
+
+        $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.venues.attach', $employee), [
+            'venue_id' => $venue->id,
+        ])->assertRedirect();
+
+        $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.packages.attach', [$employee, $venue]), [
+            'package_id' => $package->id,
+        ])->assertRedirect();
+
+        $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.services.attach', [$employee, $venue, $package]), [
+            'service_ids' => [$service->id],
+        ])->assertRedirect();
+
         $this->assertDatabaseHas('user_venue', [
             'user_id' => $employee->id,
-            'venue_id' => $venueB->id,
-            'frozen_fund_minor' => 25050,
+            'venue_id' => $venue->id,
+        ]);
+        $this->assertDatabaseHas('package_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $this->assertDatabaseHas('package_service', [
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
         ]);
     }
 
@@ -232,6 +370,45 @@ class MasterDataTest extends TestCase
             'package_id' => $package->id,
             'service_id' => $service->id,
         ]);
+    }
+
+    public function test_admin_can_render_employee_setup_workspace_for_selected_venue_and_package(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create(['name' => 'Garden Court']);
+        $package = Package::factory()->create(['name' => 'Corporate Lite']);
+        $service = Service::factory()->create(['name' => 'Lighting Rig']);
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 45000]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+                'package' => $package->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Employee setup workspace')
+            ->assertSee('Garden Court')
+            ->assertSee('Corporate Lite')
+            ->assertSee('Lighting Rig')
+            ->assertSee('Assign existing venue')
+            ->assertSee('Assign existing package')
+            ->assertSee('Assign existing service');
     }
 
     public function test_selected_packages_derive_service_access_in_employee_setup_workspace(): void
@@ -381,5 +558,54 @@ class MasterDataTest extends TestCase
             "1. Terms updated.\n2. Print only after review.",
             PrintSetting::current()->function_terms_and_conditions
         );
+    }
+
+    public function test_editing_employee_account_does_not_remove_existing_setup_when_venue_fields_are_absent(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create();
+        $service = Service::factory()->create();
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+
+        $this->actingAs($admin)->put(route('admin.master-data.employees.update', $employee), [
+            'name' => 'Employee C Updated',
+            'email' => $employee->email,
+            'role' => 'employee_c',
+            'is_active' => '1',
+            'password' => '',
+            'password_confirmation' => '',
+        ])->assertRedirect(route('admin.master-data.employees.edit', $employee));
+
+        $this->assertDatabaseHas('user_venue', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+        ]);
+        $this->assertDatabaseHas('package_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $this->assertDatabaseHas('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
     }
 }

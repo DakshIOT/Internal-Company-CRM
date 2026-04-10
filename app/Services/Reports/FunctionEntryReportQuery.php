@@ -6,6 +6,7 @@ use App\Models\FunctionEntry;
 use App\Models\FunctionPackage;
 use App\Models\FunctionServiceLine;
 use App\Reports\Filters\ReportFilters;
+use App\Support\Attachments\AttachmentExportFormatter;
 use App\Services\Reports\Concerns\AppliesReportFilters;
 use App\Support\Money;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -49,6 +50,9 @@ class FunctionEntryReportQuery
                 'attachments' => fn ($query) => $query
                     ->select(['id', 'attachable_id', 'attachable_type', 'original_name', 'mime_type', 'disk', 'storage_path'])
                     ->orderBy('id'),
+                'packages.serviceLines.service.attachments' => fn ($query) => $query
+                    ->select(['id', 'attachable_id', 'attachable_type', 'original_name', 'mime_type', 'disk', 'storage_path'])
+                    ->orderBy('id'),
             ])
             ->withCount(['attachments', 'packages'])
             ->orderByDesc('entry_date')
@@ -60,7 +64,13 @@ class FunctionEntryReportQuery
     public function rowsForExport(ReportFilters $filters): Collection
     {
         return $this->filteredQuery($filters)
-            ->with(['user:id,name,role', 'venue:id,name,code'])
+            ->with([
+                'user:id,name,role',
+                'venue:id,name,code',
+                'attachments' => fn ($query) => $query
+                    ->select(['id', 'attachable_id', 'attachable_type', 'original_name', 'mime_type', 'disk', 'storage_path'])
+                    ->orderBy('id'),
+            ])
             ->withCount(['attachments', 'packages'])
             ->orderByDesc('entry_date')
             ->orderByDesc('id')
@@ -82,6 +92,16 @@ class FunctionEntryReportQuery
                     Money::toDecimal($entry->net_total_after_frozen_fund_minor),
                     (int) $entry->packages_count,
                     (int) $entry->attachments_count,
+                    AttachmentExportFormatter::names($entry->attachments),
+                    AttachmentExportFormatter::urls(
+                        $entry->attachments,
+                        fn ($attachment) => route('admin.reports.attachments.download', $attachment)
+                    ),
+                    AttachmentExportFormatter::names($entry->serviceAttachments()),
+                    AttachmentExportFormatter::urls(
+                        $entry->serviceAttachments(),
+                        fn ($attachment) => route('admin.reports.attachments.download', $attachment)
+                    ),
                 ];
             });
     }
@@ -190,6 +210,10 @@ class FunctionEntryReportQuery
                 'Net Total After Frozen Fund',
                 'Packages Count',
                 'Attachments Count',
+                'Attachment Names',
+                'Attachment Download URLs',
+                'Service Attachment Names',
+                'Service Attachment Download URLs',
             ]], $this->rowsForExport($filters)->all()),
             'Package Totals' => array_merge([['Package', 'Entry Count', 'Total']], $this->packageTotals($filters)->map(function (array $row) {
                 return [$row['package_name'], $row['entry_count'], Money::toDecimal($row['total_minor'])];

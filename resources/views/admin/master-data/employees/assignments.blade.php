@@ -1,4 +1,4 @@
-@php use App\Support\Money; @endphp
+@php use App\Models\Service; use App\Support\Money; @endphp
 
 <x-app-layout>
     <x-slot name="header">
@@ -7,242 +7,188 @@
                 <p class="crm-section-title">Admin Master Data</p>
                 <h1 class="mt-2 font-display text-3xl font-semibold text-slate-950">Employee setup workspace</h1>
                 <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                    This is the single place to finish employee access. Venues come first, then packages, then the services inside each selected package for this employee.
+                    Stay inside one employee context: attach venues first, then packages for the selected venue, then the services inside the selected package.
                 </p>
             </div>
-            <a href="{{ route('admin.master-data.employees.edit', $employee) }}" class="crm-button crm-button-secondary justify-center">
-                Back to user
-            </a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.master-data.employees.index') }}" class="crm-button crm-button-secondary justify-center">Back to users</a>
+                <a href="{{ route('admin.master-data.employees.edit', $employee) }}" class="crm-button crm-button-secondary justify-center">Edit account</a>
+            </div>
         </div>
     </x-slot>
 
     @include('admin.master-data.partials.nav')
 
-    <form method="POST" action="{{ route('admin.master-data.employees.assignments.update', $employee) }}" class="space-y-6">
-        @csrf
-        @method('PUT')
-
-        <section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+    <div class="space-y-6">
+        <section class="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
             <article class="crm-panel p-6">
                 <p class="crm-section-title">Employee</p>
                 <h2 class="mt-2 text-2xl font-semibold text-slate-950">{{ $employee->name }}</h2>
                 <p class="mt-2 text-sm text-slate-500">{{ $employee->email }}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
                     <span class="crm-chip bg-cyan-50 text-cyan-700">{{ $employee->roleLabel() }}</span>
-                    <span class="crm-chip {{ $employee->is_active ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-500' }}">
-                        {{ $employee->is_active ? 'Active' : 'Inactive' }}
-                    </span>
+                    <span class="crm-chip {{ $employee->is_active ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-500' }}">{{ $employee->is_active ? 'Active' : 'Inactive' }}</span>
+                </div>
+                <div class="mt-6 grid gap-3 sm:grid-cols-3">
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4"><p class="crm-section-title">Venues</p><p class="mt-3 text-3xl font-semibold text-slate-950">{{ $assignedVenues->count() }}</p></div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4"><p class="crm-section-title">Packages</p><p class="mt-3 text-3xl font-semibold text-slate-950">{{ $packageAssignments->count() }}</p></div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4"><p class="crm-section-title">Services</p><p class="mt-3 text-3xl font-semibold text-slate-950">{{ $serviceAssignments->count() }}</p></div>
                 </div>
             </article>
 
             <article class="crm-panel p-6">
-                <p class="crm-section-title">How this works</p>
+                <p class="crm-section-title">How this setup works</p>
                 <div class="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-4">
-                    <div class="rounded-[1.25rem] bg-slate-50 p-4">1. Keep only the venues this employee should access.</div>
-                    <div class="rounded-[1.25rem] bg-slate-50 p-4">2. Choose packages per venue first.</div>
-                    <div class="rounded-[1.25rem] bg-slate-50 p-4">3. Inside each selected package, tick only the services this employee should be able to use.</div>
-                    <div class="rounded-[1.25rem] bg-slate-50 p-4">4. The same service can be used in multiple packages for the same venue when needed.</div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4">1. Create or assign a venue directly inside this employee workspace.</div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4">2. For the selected venue, create or assign packages only for this employee.</div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4">3. Inside the selected package, create or assign services and keep repeating that for each venue.</div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4">4. The same service can appear in multiple packages for the same venue when the workflow needs it.</div>
                 </div>
-                @if ($employee->supportsFrozenFund())
-                    <p class="mt-4 text-sm text-slate-600">Frozen fund remains available for each selected venue because this is Employee Type A.</p>
-                @endif
+                <div class="mt-4 rounded-[1.25rem] bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                    @if ($employee->supportsFrozenFund())
+                        Frozen fund is managed per selected venue for this employee because this user is Employee Type A.
+                    @else
+                        Frozen fund is not used for this employee type, so this workspace only manages venue, package, and service access.
+                    @endif
+                </div>
             </article>
         </section>
 
-        <section class="space-y-5">
-            @foreach ($venues as $venue)
-                @php
-                    $checked = in_array($venue->id, old('venue_ids', $assignedVenueIds), true);
-                    $selectedPackages = collect(old('package_ids_by_venue.'.$venue->id, $packageIdsByVenue[$venue->id] ?? []))
-                        ->map(fn ($packageId) => (int) $packageId)
-                        ->values();
-                    $selectedServices = collect(old('service_ids_by_venue.'.$venue->id, $serviceIdsByVenue[$venue->id] ?? []))
-                        ->map(fn ($serviceId) => (int) $serviceId)
-                        ->values();
-                    $selectedPackageServices = collect(old('package_service_ids_by_venue.'.$venue->id, $packageServiceIdsByVenuePackage[$venue->id] ?? []))
-                        ->mapWithKeys(function ($serviceIds, $packageId) use ($packageServiceIds, $selectedPackages) {
-                            $normalized = collect($serviceIds)->map(fn ($serviceId) => (int) $serviceId)->values()->all();
+        <section class="crm-panel p-6" x-data="{ venueSearch: '' }">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="crm-section-title">Venue setup</p>
+                    <h2 class="mt-2 text-2xl font-semibold text-slate-950">Choose the venue context first</h2>
+                    <p class="mt-2 text-sm leading-6 text-slate-600">
+                        Every package and service decision below belongs to the currently selected venue.
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="crm-button crm-button-primary justify-center" x-data x-on:click="$dispatch('open-modal', 'create-venue-modal')">Create venue</button>
+                    <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-venue-modal')" @disabled($availableVenues->isEmpty())>Assign existing venue</button>
+                </div>
+            </div>
 
-                            if ($normalized === [] && $selectedPackages->contains((int) $packageId)) {
-                                $normalized = collect($packageServiceIds[(int) $packageId] ?? [])
-                                    ->map(fn ($serviceId) => (int) $serviceId)
-                                    ->values()
-                                    ->all();
-                            }
+            @if ($assignedVenues->count() > 6)
+                <div class="mt-5 max-w-md">
+                    <x-input-label for="venue_search" value="Search assigned venues" />
+                    <x-text-input id="venue_search" x-model="venueSearch" class="crm-input mt-2 w-full" placeholder="Search by venue name or code" />
+                </div>
+            @endif
 
-                            return [(int) $packageId => $normalized];
-                        })
-                        ->all();
-                    $derivedServiceIds = collect($selectedPackageServices)
-                        ->flatten()
-                        ->map(fn ($serviceId) => (int) $serviceId)
-                        ->unique()
-                        ->values();
-                    $extraServices = $selectedServices
-                        ->reject(fn ($serviceId) => $derivedServiceIds->contains($serviceId))
-                        ->values();
-                    $venueState = [
-                        'selectedPackages' => $selectedPackages->all(),
-                        'packageServices' => collect($selectedPackageServices)
-                            ->mapWithKeys(fn ($serviceIds, $packageId) => [(string) $packageId => array_values($serviceIds)])
-                            ->all(),
-                        'defaults' => collect($packageServiceIds)
-                            ->mapWithKeys(fn ($serviceIds, $packageId) => [(string) $packageId => array_values(array_map('intval', $serviceIds))])
-                            ->all(),
-                    ];
-                @endphp
+            @if ($assignedVenues->isEmpty())
+                <div class="mt-5 rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+                    <h3 class="text-xl font-semibold text-slate-950">No venues assigned yet</h3>
+                    <p class="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                        Start by creating a venue here or assigning one of the existing active venues to this employee.
+                    </p>
+                </div>
+            @else
+                <div class="mt-5 flex gap-3 overflow-x-auto pb-2">
+                    @foreach ($assignedVenues as $venue)
+                        @php($venueNeedle = strtolower(trim($venue->name.' '.$venue->code)))
+                        <a
+                            href="{{ route('admin.master-data.employees.assignments.edit', ['employee' => $employee, 'venue' => $venue->id]) }}"
+                            x-show="!venueSearch || @js($venueNeedle).includes(venueSearch.toLowerCase().trim())"
+                            class="min-w-[12rem] rounded-[1.25rem] border px-4 py-3 text-left transition"
+                            :class="'{{ $selectedVenue && $selectedVenue->id === $venue->id ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/15' : 'border-slate-200 bg-white text-slate-700 hover:border-cyan-300 hover:bg-cyan-50' }}'"
+                        >
+                            <div class="text-xs uppercase tracking-[0.2em] {{ $selectedVenue && $selectedVenue->id === $venue->id ? 'text-white/70' : 'text-slate-400' }}">Venue</div>
+                            <div class="mt-2 text-lg font-semibold">{{ $venue->name }}</div>
+                            <div class="mt-1 text-xs uppercase tracking-[0.18em] {{ $selectedVenue && $selectedVenue->id === $venue->id ? 'text-white/70' : 'text-slate-400' }}">{{ $venue->code ?: 'No code' }}</div>
+                        </a>
+                    @endforeach
+                </div>
+            @endif
+        </section>
 
-                <article
-                    class="crm-panel p-6"
-                    x-data='{
-                        selectedPackages: @json($venueState["selectedPackages"]),
-                        packageServices: @json($venueState["packageServices"]),
-                        defaults: @json($venueState["defaults"]),
-                        hasPackage(packageId) {
-                            return this.selectedPackages.includes(packageId);
-                        },
-                        syncPackage(packageId, checked) {
-                            if (checked) {
-                                if (! this.selectedPackages.includes(packageId)) {
-                                    this.selectedPackages.push(packageId);
-                                }
-
-                                if (! Array.isArray(this.packageServices[packageId]) || this.packageServices[packageId].length === 0) {
-                                    this.packageServices[packageId] = [...(this.defaults[packageId] ?? [])];
-                                }
-
-                                return;
-                            }
-
-                            this.selectedPackages = this.selectedPackages.filter((id) => id !== packageId);
-                            this.packageServices[packageId] = [];
-                        },
-                        hasService(packageId, serviceId) {
-                            return Array.isArray(this.packageServices[packageId]) && this.packageServices[packageId].includes(serviceId);
-                        },
-                        syncService(packageId, serviceId, checked) {
-                            if (! Array.isArray(this.packageServices[packageId])) {
-                                this.packageServices[packageId] = [];
-                            }
-
-                            if (checked) {
-                                if (! this.packageServices[packageId].includes(serviceId)) {
-                                    this.packageServices[packageId].push(serviceId);
-                                }
-
-                                return;
-                            }
-
-                            this.packageServices[packageId] = this.packageServices[packageId].filter((id) => id !== serviceId);
-                        }
-                    }'
-                >
-                    <div class="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                            <div class="flex items-center gap-3">
-                                <input type="checkbox" name="venue_ids[]" value="{{ $venue->id }}" class="h-5 w-5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked($checked)>
-                                <div>
-                                    <h2 class="text-2xl font-semibold text-slate-950">{{ $venue->name }}</h2>
-                                    <p class="mt-1 text-sm text-slate-500">{{ $venue->code ?: 'No code' }}</p>
-                                </div>
+        @if ($selectedVenue)
+            <section class="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                <article class="space-y-6">
+                    <section class="crm-panel p-6">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <p class="crm-section-title">Selected venue</p>
+                                <h2 class="mt-2 text-2xl font-semibold text-slate-950">{{ $selectedVenue->name }}</h2>
+                                <p class="mt-2 text-sm text-slate-500">{{ $selectedVenue->code ?: 'No code' }}</p>
                             </div>
-                            <p class="mt-3 text-sm text-slate-600">Keep this venue enabled only if the employee should be able to log in and work in this venue.</p>
+                            <form method="POST" action="{{ route('admin.master-data.employees.assignments.venues.destroy', [$employee, $selectedVenue]) }}">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="crm-button crm-button-secondary justify-center" onclick="return confirm('Remove this venue from the employee setup?')">Remove venue</button>
+                            </form>
                         </div>
 
-                        <div class="flex flex-wrap items-start gap-2">
-                            <span class="crm-chip {{ $venue->is_active ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-500' }}">
-                                {{ $venue->is_active ? 'Active venue' : 'Inactive venue' }}
-                            </span>
-                            @if ($employee->supportsFrozenFund())
-                                <div class="min-w-[12rem]">
-                                    <x-input-label :for="'frozen_fund_'.$venue->id" value="Frozen fund" />
-                                    <x-text-input
-                                        :id="'frozen_fund_'.$venue->id"
-                                        :name="'frozen_funds['.$venue->id.']'"
-                                        :value="old('frozen_funds.'.$venue->id, $frozenFunds[$venue->id] ?? Money::formatMinor(0))"
-                                        class="crm-input mt-2 w-full"
-                                    />
+                        @if ($employee->supportsFrozenFund())
+                            <form method="POST" action="{{ route('admin.master-data.employees.assignments.venues.update', [$employee, $selectedVenue]) }}" class="mt-5 rounded-[1.25rem] bg-slate-50 p-4">
+                                @csrf
+                                @method('PUT')
+                                <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
+                                    <div class="flex-1">
+                                        <x-input-label for="selected_frozen_fund" value="Frozen fund for this venue" />
+                                        <x-text-input id="selected_frozen_fund" name="frozen_fund" :value="old('frozen_fund', $selectedFrozenFund)" class="crm-input mt-2 w-full" />
+                                        <x-input-error :messages="$errors->get('frozen_fund')" class="mt-2" />
+                                    </div>
+                                    <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center">Save venue setup</button>
                                 </div>
-                            @endif
-                            <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center px-4 py-2.5">
-                                Save venue setup
-                            </button>
+                            </form>
+                        @endif
+                    </section>
+
+                    <section class="crm-panel p-6" x-data="{ packageSearch: '' }">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                            <div>
+                                <p class="crm-section-title">Packages</p>
+                                <h2 class="mt-2 text-2xl font-semibold text-slate-950">Packages for {{ $selectedVenue->name }}</h2>
+                                <p class="mt-2 text-sm leading-6 text-slate-600">
+                                    Create new packages here or attach existing ones for this employee inside the selected venue.
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" class="crm-button crm-button-primary justify-center" x-data x-on:click="$dispatch('open-modal', 'create-package-modal')">Create package</button>
+                                <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-package-modal')" @disabled($availablePackages->isEmpty())>Assign existing package</button>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="mt-5 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-                        <section class="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-4">
-                            <div class="mb-4 flex items-center justify-between gap-3">
-                                <div>
-                                    <p class="crm-section-title">Packages</p>
-                                    <h3 class="mt-1 text-lg font-semibold text-slate-950">Choose packages first</h3>
-                                </div>
-                                    <span class="crm-chip bg-white text-slate-500" x-text="`${selectedPackages.length} selected`">{{ $selectedPackages->count() }} selected</span>
-                                </div>
+                        @if ($packageAssignments->count() > 5)
+                            <div class="mt-5 max-w-md">
+                                <x-input-label for="package_search" value="Search packages in this venue" />
+                                <x-text-input id="package_search" x-model="packageSearch" class="crm-input mt-2 w-full" placeholder="Search by package name or code" />
+                            </div>
+                        @endif
 
-                            <div class="crm-table-wrap">
-                                <table class="crm-table min-w-[720px]">
+                        @if ($packageAssignments->isEmpty())
+                            <div class="mt-5 rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                                <h3 class="text-xl font-semibold text-slate-950">No packages in this venue yet</h3>
+                                <p class="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                                    Add a package for this employee in {{ $selectedVenue->name }} before choosing package services.
+                                </p>
+                            </div>
+                        @else
+                            <div class="mt-5 crm-table-wrap">
+                                <table class="crm-table min-w-[680px]">
                                     <thead>
-                                        <tr>
-                                            <th>Use</th>
-                                            <th>Package</th>
-                                            <th>Services in this package</th>
-                                        </tr>
+                                        <tr><th>Package</th><th>Services</th><th>Actions</th></tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
-                                        @foreach ($packages as $package)
-                                            @php
-                                                $packageSelectedServiceIds = collect($selectedPackageServices[$package->id] ?? $packageServiceIds[$package->id] ?? [])
-                                                    ->map(fn ($serviceId) => (int) $serviceId)
-                                                    ->values();
-                                            @endphp
-                                            <tr>
+                                        @foreach ($packageAssignments as $packageAssignment)
+                                            @php($packageNeedle = strtolower(trim(($packageAssignment->package?->name ?? '').' '.($packageAssignment->package?->code ?? ''))))
+                                            <tr x-show="!packageSearch || @js($packageNeedle).includes(packageSearch.toLowerCase().trim())">
                                                 <td>
-                                                    <input
-                                                        type="checkbox"
-                                                        name="package_ids_by_venue[{{ $venue->id }}][]"
-                                                        value="{{ $package->id }}"
-                                                        class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
-                                                        @checked($selectedPackages->contains($package->id))
-                                                        @change="syncPackage({{ $package->id }}, $event.target.checked)"
-                                                    >
+                                                    <div class="font-semibold text-slate-950">{{ $packageAssignment->package?->name }}</div>
+                                                    <div class="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{{ $packageAssignment->package?->code ?: 'No code' }}</div>
                                                 </td>
-                                                <td class="font-semibold text-slate-950">
-                                                    <div>{{ $package->name }}</div>
-                                                    <div class="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{{ $package->code }}</div>
-                                                </td>
+                                                <td><span class="crm-chip bg-cyan-50 text-cyan-700">{{ (int) ($serviceCountsByPackage[$packageAssignment->package_id] ?? 0) }} services</span></td>
                                                 <td>
-                                                    <div class="space-y-3">
-                                                        <p class="text-sm text-slate-500">Choose the services this employee can use inside {{ $package->name }}. The same service can stay checked in another package too.</p>
-                                                        <div class="grid gap-2 md:grid-cols-2">
-                                                            @forelse ($package->services as $service)
-                                                                <label
-                                                                    class="rounded-[1.1rem] border px-3 py-2 text-sm transition"
-                                                                    :class="hasPackage({{ $package->id }}) ? 'border-cyan-200 bg-white text-slate-700' : 'border-slate-200 bg-slate-100/70 text-slate-400'"
-                                                                >
-                                                                    <span class="flex items-start gap-3">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            name="package_service_ids_by_venue[{{ $venue->id }}][{{ $package->id }}][]"
-                                                                            value="{{ $service->id }}"
-                                                                            class="mt-1 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
-                                                                            @checked($packageSelectedServiceIds->contains($service->id))
-                                                                            :disabled="! hasPackage({{ $package->id }})"
-                                                                            @change="syncService({{ $package->id }}, {{ $service->id }}, $event.target.checked)"
-                                                                        >
-                                                                        <span>
-                                                                            <span class="block font-semibold text-slate-900">{{ $service->name }}</span>
-                                                                            <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">
-                                                                                {{ Money::formatMinor($service->standard_rate_minor) }}
-                                                                                | {{ strtolower($service->personModeLabel()) }}
-                                                                            </span>
-                                                                        </span>
-                                                                    </span>
-                                                                </label>
-                                                            @empty
-                                                                <p class="text-sm text-slate-500">No services mapped to this package yet.</p>
-                                                            @endforelse
-                                                        </div>
+                                                    <div class="flex flex-wrap gap-2">
+                                                        <a href="{{ route('admin.master-data.employees.assignments.edit', ['employee' => $employee, 'venue' => $selectedVenue->id, 'package' => $packageAssignment->package_id]) }}" class="crm-button {{ $selectedPackageAssignment && $selectedPackageAssignment->package_id === $packageAssignment->package_id ? 'crm-button-primary' : 'crm-button-secondary' }}">
+                                                            {{ $selectedPackageAssignment && $selectedPackageAssignment->package_id === $packageAssignment->package_id ? 'Viewing services' : 'Open services' }}
+                                                        </a>
+                                                        <form method="POST" action="{{ route('admin.master-data.employees.assignments.packages.destroy', [$employee, $selectedVenue, $packageAssignment->package]) }}">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="crm-button crm-button-secondary" onclick="return confirm('Remove this package from the employee venue?')">Remove</button>
+                                                        </form>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -250,79 +196,410 @@
                                     </tbody>
                                 </table>
                             </div>
-                        </section>
+                        @endif
+                    </section>
+                </article>
 
-                        <section class="space-y-4">
-                            <article class="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-4">
-                                <div class="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p class="crm-section-title">Venue service access</p>
-                                        <h3 class="mt-1 text-lg font-semibold text-slate-950">Derived from selected packages</h3>
-                                    </div>
-                                    <span class="crm-chip bg-white text-slate-500">{{ $derivedServiceIds->count() }} included</span>
+                <article class="space-y-6">
+                    <section class="crm-panel p-6" x-data="{ serviceSearch: '' }">
+                        @if ($selectedPackageAssignment)
+                            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                                <div>
+                                    <p class="crm-section-title">Services in package</p>
+                                    <h2 class="mt-2 text-2xl font-semibold text-slate-950">{{ $selectedPackageAssignment->package?->name }}</h2>
+                                    <p class="mt-2 text-sm leading-6 text-slate-600">
+                                        Create a new service for this package or attach one of the existing services. This service mapping is specific to the selected employee, venue, and package.
+                                    </p>
                                 </div>
-
-                                <div class="mt-4 flex flex-wrap gap-2">
-                                    @forelse ($services->whereIn('id', $derivedServiceIds) as $service)
-                                        <span class="crm-chip bg-cyan-50 text-cyan-700">{{ $service->name }}</span>
-                                    @empty
-                                        <p class="text-sm text-slate-500">No services are being derived yet because no package services are selected for this venue.</p>
-                                    @endforelse
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" class="crm-button crm-button-primary justify-center" x-data x-on:click="$dispatch('open-modal', 'create-service-modal')">Create service</button>
+                                    <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-service-modal')" @disabled($availableServices->isEmpty())>Assign existing service</button>
                                 </div>
-                            </article>
+                            </div>
 
-                            <article class="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-4">
-                                <div class="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p class="crm-section-title">Extra service access</p>
-                                        <h3 class="mt-1 text-lg font-semibold text-slate-950">Only add venue-level overrides when needed</h3>
-                                    </div>
-                                    <span class="crm-chip bg-white text-slate-500">{{ $extraServices->count() }} extra</span>
+                            @if ($serviceAssignments->count() > 6)
+                                <div class="mt-5 max-w-md">
+                                    <x-input-label for="service_search" value="Search services in this package" />
+                                    <x-text-input id="service_search" x-model="serviceSearch" class="crm-input mt-2 w-full" placeholder="Search by service name, code, or mode" />
                                 </div>
+                            @endif
 
-                                <div class="mt-4 crm-table-wrap">
-                                    <table class="crm-table min-w-[420px]">
+                            @if ($serviceAssignments->isEmpty())
+                                <div class="mt-5 rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                                    <h3 class="text-xl font-semibold text-slate-950">No services in this package yet</h3>
+                                    <p class="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                                        This package is assigned to the employee, but the employee cannot use it in Function Entry until at least one service is added here.
+                                    </p>
+                                </div>
+                            @else
+                                <div class="mt-5 crm-table-wrap">
+                                    <table class="crm-table min-w-[860px]">
                                         <thead>
-                                            <tr>
-                                                <th>Use</th>
-                                                <th>Service</th>
-                                                <th>Rate</th>
-                                            </tr>
+                                            <tr><th>Service</th><th>Mode</th><th>Rate</th><th>Files</th><th>Actions</th></tr>
                                         </thead>
                                         <tbody class="divide-y divide-slate-100">
-                                            @foreach ($services as $service)
-                                                @continue($derivedServiceIds->contains($service->id))
-                                                <tr>
+                                            @foreach ($serviceAssignments as $serviceAssignment)
+                                                @php($serviceNeedle = strtolower(trim(($serviceAssignment->service?->name ?? '').' '.($serviceAssignment->service?->code ?? '').' '.($serviceAssignment->service?->personModeLabel() ?? ''))))
+                                                <tr x-show="!serviceSearch || @js($serviceNeedle).includes(serviceSearch.toLowerCase().trim())">
                                                     <td>
-                                                        <input type="checkbox" name="service_ids_by_venue[{{ $venue->id }}][]" value="{{ $service->id }}" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked($extraServices->contains($service->id))>
+                                                        <div class="font-semibold text-slate-950">{{ $serviceAssignment->service?->name }}</div>
+                                                        <div class="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{{ $serviceAssignment->service?->code ?: 'No code' }}</div>
                                                     </td>
-                                                    <td class="font-semibold text-slate-950">{{ $service->name }}</td>
-                                                    <td>{{ Money::formatMinor($service->standard_rate_minor) }}</td>
+                                                    <td>{{ $serviceAssignment->service?->personModeLabel() }}</td>
+                                                    <td>{{ Money::formatMinor((int) ($serviceAssignment->service?->standard_rate_minor ?? 0)) }}</td>
+                                                    <td>
+                                                        <span class="crm-chip bg-cyan-50 text-cyan-700">
+                                                            {{ $serviceAssignment->service?->attachments?->count() ?? 0 }} files
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <form method="POST" action="{{ route('admin.master-data.employees.assignments.services.destroy', [$employee, $selectedVenue, $selectedPackageAssignment->package, $serviceAssignment->service]) }}">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="crm-button crm-button-secondary" onclick="return confirm('Remove this service from the selected employee package?')">Remove</button>
+                                                        </form>
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
                                     </table>
                                 </div>
-                            </article>
-                        </section>
-                    </div>
-
-                    <div class="mt-5 flex justify-end">
-                        <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center px-4 py-2.5">
-                            Save venue setup
-                        </button>
-                    </div>
+                            @endif
+                        @else
+                            <div class="flex h-full min-h-[22rem] items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                                <div class="max-w-xl">
+                                    <p class="crm-section-title">Services</p>
+                                    <h2 class="mt-2 text-2xl font-semibold text-slate-950">Select a package first</h2>
+                                    <p class="mt-3 text-sm leading-6 text-slate-600">
+                                        Once a package is selected in the venue section, its service setup opens here so the admin can add or attach services inside that package.
+                                    </p>
+                                </div>
+                            </div>
+                        @endif
+                    </section>
                 </article>
-            @endforeach
-        </section>
+            </section>
+        @endif
+    </div>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
-            <a href="{{ route('admin.master-data.employees.index') }}" class="crm-button crm-button-secondary justify-center">
-                Back to users
-            </a>
-            <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center">
-                Save employee setup
-            </button>
-        </div>
-    </form>
+    <x-modal name="create-venue-modal" :show="$errors->createVenue->isNotEmpty()" maxWidth="2xl" focusable>
+        <form method="POST" action="{{ route('admin.master-data.employees.assignments.venues.store', $employee) }}" class="space-y-5 p-6">
+            @csrf
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="crm-section-title">Create venue</p>
+                    <h2 class="mt-2 text-2xl font-semibold text-slate-950">Create and assign a new venue</h2>
+                </div>
+                <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <x-input-label for="create_venue_name" value="Venue name" />
+                    <x-text-input id="create_venue_name" name="name" :value="old('name')" class="crm-input mt-2 w-full" />
+                    <x-input-error :messages="$errors->createVenue->get('name')" class="mt-2" />
+                </div>
+                <div>
+                    <x-input-label for="create_venue_code" value="Venue code" />
+                    <x-text-input id="create_venue_code" name="code" :value="old('code')" class="crm-input mt-2 w-full" />
+                    <x-input-error :messages="$errors->createVenue->get('code')" class="mt-2" />
+                </div>
+            </div>
+
+            @if ($employee->supportsFrozenFund())
+                <div>
+                    <x-input-label for="create_venue_frozen_fund" value="Frozen fund" />
+                    <x-text-input id="create_venue_frozen_fund" name="frozen_fund" :value="old('frozen_fund', '0.00')" class="crm-input mt-2 w-full" />
+                    <x-input-error :messages="$errors->createVenue->get('frozen_fund')" class="mt-2" />
+                </div>
+            @endif
+
+            <div>
+                <p class="crm-section-title">Vendor slots</p>
+                <div class="mt-3 grid gap-4 md:grid-cols-2">
+                    @foreach (range(1, 4) as $slotNumber)
+                        <div>
+                            <x-input-label :for="'vendor_slot_'.$slotNumber" :value="'Vendor slot '.$slotNumber" />
+                            <x-text-input :id="'vendor_slot_'.$slotNumber" :name="'vendor_slots['.$slotNumber.']'" :value="old('vendor_slots.'.$slotNumber, 'Vendor '.$slotNumber)" class="crm-input mt-2 w-full" />
+                            <x-input-error :messages="$errors->createVenue->get('vendor_slots.'.$slotNumber)" class="mt-2" />
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                <button type="submit" data-loading-label="Creating..." class="crm-button crm-button-primary justify-center">Create venue</button>
+            </div>
+        </form>
+    </x-modal>
+
+    <x-modal name="assign-venue-modal" :show="$errors->attachVenue->isNotEmpty()" maxWidth="2xl" focusable>
+        <form method="POST" action="{{ route('admin.master-data.employees.assignments.venues.attach', $employee) }}" class="space-y-5 p-6" x-data="{ venueSearch: '', selectedVenueId: '{{ old('venue_id') }}' }">
+            @csrf
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="crm-section-title">Assign venue</p>
+                    <h2 class="mt-2 text-2xl font-semibold text-slate-950">Assign an existing venue</h2>
+                </div>
+                <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
+            </div>
+
+            @if ($availableVenues->isEmpty())
+                <p class="text-sm leading-6 text-slate-600">All active venues are already assigned to this employee.</p>
+            @else
+                @if ($employee->supportsFrozenFund())
+                    <div>
+                        <x-input-label for="attach_venue_frozen_fund" value="Frozen fund" />
+                        <x-text-input id="attach_venue_frozen_fund" name="frozen_fund" :value="old('frozen_fund', '0.00')" class="crm-input mt-2 w-full" />
+                        <x-input-error :messages="$errors->attachVenue->get('frozen_fund')" class="mt-2" />
+                    </div>
+                @endif
+            @endif
+
+            @if ($availableVenues->isNotEmpty())
+                <div>
+                    <x-input-label for="assign_existing_venue_search" value="Search existing venues" />
+                    <x-text-input id="assign_existing_venue_search" x-model="venueSearch" class="crm-input mt-2 w-full" placeholder="Search by venue name or code" />
+                </div>
+
+                <div class="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                    @foreach ($availableVenues as $venue)
+                        @php($availableVenueNeedle = strtolower(trim($venue->name.' '.$venue->code)))
+                        <label
+                            x-show="!venueSearch || @js($availableVenueNeedle).includes(venueSearch.toLowerCase().trim())"
+                            class="block rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
+                            :class="selectedVenueId === '{{ $venue->id }}' ? 'border-cyan-300 bg-cyan-50 ring-2 ring-cyan-200/70' : ''"
+                        >
+                            <span class="flex items-start gap-3">
+                                <input type="radio" name="venue_id" value="{{ $venue->id }}" x-model="selectedVenueId" class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400">
+                                <span>
+                                    <span class="block font-semibold text-slate-950">{{ $venue->name }}</span>
+                                    <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ $venue->code ?: 'No code' }}</span>
+                                </span>
+                            </span>
+                        </label>
+                    @endforeach
+                </div>
+                <x-input-error :messages="$errors->attachVenue->get('venue_id')" class="mt-2" />
+            @endif
+
+            <div class="flex justify-end gap-3">
+                <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center" @disabled($availableVenues->isEmpty())>Assign venue</button>
+            </div>
+        </form>
+    </x-modal>
+
+    @if ($selectedVenue)
+        <x-modal name="create-package-modal" :show="$errors->createPackage->isNotEmpty()" maxWidth="xl" focusable>
+            <form method="POST" action="{{ route('admin.master-data.employees.assignments.packages.store', [$employee, $selectedVenue]) }}" class="space-y-5 p-6">
+                @csrf
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="crm-section-title">Create package</p>
+                        <h2 class="mt-2 text-2xl font-semibold text-slate-950">Create a package for {{ $selectedVenue->name }}</h2>
+                    </div>
+                    <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <x-input-label for="create_package_name" value="Package name" />
+                        <x-text-input id="create_package_name" name="name" :value="old('name')" class="crm-input mt-2 w-full" />
+                        <x-input-error :messages="$errors->createPackage->get('name')" class="mt-2" />
+                    </div>
+                    <div>
+                        <x-input-label for="create_package_code" value="Package code" />
+                        <x-text-input id="create_package_code" name="code" :value="old('code')" class="crm-input mt-2 w-full" />
+                        <x-input-error :messages="$errors->createPackage->get('code')" class="mt-2" />
+                    </div>
+                </div>
+
+                <div>
+                    <x-input-label for="create_package_description" value="Description" />
+                    <textarea id="create_package_description" name="description" rows="4" class="crm-input mt-2 w-full" placeholder="Optional package notes">{{ old('description') }}</textarea>
+                    <x-input-error :messages="$errors->createPackage->get('description')" class="mt-2" />
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                    <button type="submit" data-loading-label="Creating..." class="crm-button crm-button-primary justify-center">Create package</button>
+                </div>
+            </form>
+        </x-modal>
+
+        <x-modal name="assign-package-modal" :show="$errors->attachPackage->isNotEmpty()" maxWidth="2xl" focusable>
+            <form method="POST" action="{{ route('admin.master-data.employees.assignments.packages.attach', [$employee, $selectedVenue]) }}" class="space-y-5 p-6" x-data="{ packageSearch: '', selectedPackageId: '{{ old('package_id') }}' }">
+                @csrf
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="crm-section-title">Assign package</p>
+                        <h2 class="mt-2 text-2xl font-semibold text-slate-950">Attach an existing package</h2>
+                    </div>
+                    <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
+                </div>
+
+                @if ($availablePackages->isEmpty())
+                    <p class="text-sm leading-6 text-slate-600">All active packages are already attached to this venue for the selected employee.</p>
+                @else
+                    <div>
+                        <x-input-label for="assign_existing_package_search" value="Search existing packages" />
+                        <x-text-input id="assign_existing_package_search" x-model="packageSearch" class="crm-input mt-2 w-full" placeholder="Search by package name or code" />
+                    </div>
+
+                    <div class="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                        @foreach ($availablePackages as $package)
+                            @php($availablePackageNeedle = strtolower(trim($package->name.' '.$package->code)))
+                            <label
+                                x-show="!packageSearch || @js($availablePackageNeedle).includes(packageSearch.toLowerCase().trim())"
+                                class="block rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
+                                :class="selectedPackageId === '{{ $package->id }}' ? 'border-cyan-300 bg-cyan-50 ring-2 ring-cyan-200/70' : ''"
+                            >
+                                <span class="flex items-start gap-3">
+                                    <input type="radio" name="package_id" value="{{ $package->id }}" x-model="selectedPackageId" class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400">
+                                    <span>
+                                        <span class="block font-semibold text-slate-950">{{ $package->name }}</span>
+                                        <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ $package->code ?: 'No code' }}</span>
+                                    </span>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                        <x-input-error :messages="$errors->attachPackage->get('package_id')" class="mt-2" />
+                @endif
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                    <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center" @disabled($availablePackages->isEmpty())>Assign package</button>
+                </div>
+            </form>
+        </x-modal>
+    @endif
+
+    @if ($selectedVenue && $selectedPackageAssignment)
+        <x-modal name="create-service-modal" :show="$errors->createService->isNotEmpty()" maxWidth="2xl" focusable>
+            <form method="POST" enctype="multipart/form-data" action="{{ route('admin.master-data.employees.assignments.services.store', [$employee, $selectedVenue, $selectedPackageAssignment->package]) }}" class="space-y-5 p-6" x-data="{ personInputMode: @js(old('person_input_mode', Service::PERSON_MODE_FIXED)) }">
+                @csrf
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="crm-section-title">Create service</p>
+                        <h2 class="mt-2 text-2xl font-semibold text-slate-950">Create a service in {{ $selectedPackageAssignment->package?->name }}</h2>
+                    </div>
+                    <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <x-input-label for="create_service_name" value="Service name" />
+                        <x-text-input id="create_service_name" name="name" :value="old('name')" class="crm-input mt-2 w-full" />
+                        <x-input-error :messages="$errors->createService->get('name')" class="mt-2" />
+                    </div>
+                    <div>
+                        <x-input-label for="create_service_code" value="Service code" />
+                        <x-text-input id="create_service_code" name="code" :value="old('code')" class="crm-input mt-2 w-full" />
+                        <x-input-error :messages="$errors->createService->get('code')" class="mt-2" />
+                    </div>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <x-input-label for="create_service_rate" value="Standard rate" />
+                        <x-text-input id="create_service_rate" name="standard_rate" :value="old('standard_rate', '0.00')" class="crm-input mt-2 w-full" />
+                        <x-input-error :messages="$errors->createService->get('standard_rate')" class="mt-2" />
+                    </div>
+                    <div>
+                        <x-input-label for="create_service_mode" value="Person rule" />
+                        <select id="create_service_mode" name="person_input_mode" class="crm-input mt-2 w-full" x-model="personInputMode">
+                            <option value="{{ Service::PERSON_MODE_FIXED }}">Person-based service</option>
+                            <option value="{{ Service::PERSON_MODE_EMPLOYEE }}">Employee can select persons</option>
+                            <option value="{{ Service::PERSON_MODE_NONE }}">Flat-rate service</option>
+                        </select>
+                        <x-input-error :messages="$errors->createService->get('person_input_mode')" class="mt-2" />
+                    </div>
+                </div>
+
+                <div x-show="personInputMode === '{{ Service::PERSON_MODE_FIXED }}'" x-cloak>
+                    <x-input-label for="create_service_default_persons" value="Default persons" />
+                    <x-text-input id="create_service_default_persons" name="default_persons" :value="old('default_persons', 1)" class="crm-input mt-2 w-full" />
+                    <x-input-error :messages="$errors->createService->get('default_persons')" class="mt-2" />
+                </div>
+
+                <div>
+                    <x-input-label for="create_service_notes" value="Notes" />
+                    <textarea id="create_service_notes" name="notes" rows="4" class="crm-input mt-2 w-full" placeholder="Optional setup notes">{{ old('notes') }}</textarea>
+                    <x-input-error :messages="$errors->createService->get('notes')" class="mt-2" />
+                </div>
+
+                <div class="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+                    <x-input-label for="create_service_attachments" value="Reference attachments" />
+                    <input
+                        id="create_service_attachments"
+                        name="attachments[]"
+                        type="file"
+                        multiple
+                        accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.avif,.heic,.heif,.tif,.tiff,.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.csv,.odf"
+                        class="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+                    />
+                    <p class="mt-2 text-xs text-slate-500">Admin-only uploads. Employees can later open or download these files in Function Entry, print, and exports.</p>
+                    <p class="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                        Unsupported files such as <span class="font-semibold">.css</span> or <span class="font-semibold">.txt</span> will be rejected.
+                    </p>
+                    <x-input-error :messages="$errors->createService->get('attachments')" class="mt-2" />
+                    <x-input-error :messages="$errors->createService->get('attachments.*')" class="mt-2" />
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                    <button type="submit" data-loading-label="Creating..." class="crm-button crm-button-primary justify-center">Create service</button>
+                </div>
+            </form>
+        </x-modal>
+
+        <x-modal name="assign-service-modal" :show="$errors->attachService->isNotEmpty()" maxWidth="2xl" focusable>
+            <form method="POST" action="{{ route('admin.master-data.employees.assignments.services.attach', [$employee, $selectedVenue, $selectedPackageAssignment->package]) }}" class="space-y-5 p-6" x-data="{ serviceSearch: '' }">
+                @csrf
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="crm-section-title">Assign services</p>
+                        <h2 class="mt-2 text-2xl font-semibold text-slate-950">Attach existing services</h2>
+                    </div>
+                    <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
+                </div>
+
+                @if ($availableServices->isEmpty())
+                    <p class="text-sm leading-6 text-slate-600">All active services are already attached to this selected employee package.</p>
+                @else
+                    <div>
+                        <x-input-label for="assign_existing_service_search" value="Search existing services" />
+                        <x-text-input id="assign_existing_service_search" x-model="serviceSearch" class="crm-input mt-2 w-full" placeholder="Search by service name, code, or mode" />
+                    </div>
+
+                    <div class="grid max-h-[24rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2">
+                        @foreach ($availableServices as $service)
+                            @php($availableServiceNeedle = strtolower(trim($service->name.' '.$service->code.' '.$service->personModeLabel())))
+                            <label
+                                x-show="!serviceSearch || @js($availableServiceNeedle).includes(serviceSearch.toLowerCase().trim())"
+                                class="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
+                            >
+                                <span class="flex items-start gap-3">
+                                    <input type="checkbox" name="service_ids[]" value="{{ $service->id }}" class="mt-1 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked(collect(old('service_ids', []))->contains($service->id))>
+                                    <span>
+                                        <span class="block font-semibold text-slate-950">{{ $service->name }}</span>
+                                        <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ Money::formatMinor($service->standard_rate_minor) }} | {{ strtolower($service->personModeLabel()) }}</span>
+                                    </span>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                    <x-input-error :messages="$errors->attachService->get('service_ids')" class="mt-2" />
+                @endif
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                    <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center" @disabled($availableServices->isEmpty())>Assign services</button>
+                </div>
+            </form>
+        </x-modal>
+    @endif
 </x-app-layout>

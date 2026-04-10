@@ -8,6 +8,7 @@ use App\Models\Attachment;
 use App\Models\DailyBillingEntry;
 use App\Models\DailyIncomeEntry;
 use App\Models\FunctionEntry;
+use App\Models\Service;
 use App\Models\VendorEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -39,6 +40,7 @@ class ReportAttachmentController extends Controller
 
         $allowedTypes = [
             FunctionEntry::class,
+            Service::class,
             DailyIncomeEntry::class,
             DailyBillingEntry::class,
             VendorEntry::class,
@@ -48,4 +50,3 @@ class ReportAttachmentController extends Controller
         abort_unless(in_array($attachment->attachable_type, $allowedTypes, true), 404);
     }
 }
-

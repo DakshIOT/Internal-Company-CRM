@@ -12,7 +12,7 @@ class DailyBillingReportQuery extends AbstractAmountReportQuery
 
     protected function exportHeadings(): array
     {
-        return ['Entry Date', 'Venue', 'Employee', 'Employee Type', 'Name', 'Amount', 'Notes', 'Attachments Count'];
+        return ['Entry Date', 'Venue', 'Employee', 'Employee Type', 'Name', 'Amount', 'Notes', 'Attachments Count', 'Attachment Names', 'Attachment Download URLs'];
     }
 
     protected function mapExportRow($entry): array
@@ -26,6 +26,8 @@ class DailyBillingReportQuery extends AbstractAmountReportQuery
             Money::toDecimal($entry->amount_minor),
             (string) $entry->notes,
             (int) $entry->attachments_count,
+            $this->attachmentNames($entry),
+            $this->attachmentDownloadUrls($entry),
         ];
     }
 }

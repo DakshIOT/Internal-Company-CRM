@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests\Admin\MasterData;
 
+use App\Http\Requests\Concerns\HasAttachmentRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use App\Models\Service;
 
 class StoreServiceRequest extends FormRequest
 {
+    use HasAttachmentRules;
+
     public function authorize(): bool
     {
         return (bool) $this->user()?->isAdmin();
@@ -15,7 +18,7 @@ class StoreServiceRequest extends FormRequest
 
     public function rules(): array
     {
-        return [
+        return array_merge([
             'name' => ['required', 'string', 'max:120', Rule::unique('services', 'name')],
             'code' => ['nullable', 'string', 'max:40', Rule::unique('services', 'code')],
             'standard_rate' => ['required', 'numeric', 'min:0'],
@@ -29,6 +32,6 @@ class StoreServiceRequest extends FormRequest
             'is_active' => ['nullable', 'boolean'],
             'package_ids' => ['nullable', 'array'],
             'package_ids.*' => ['integer', Rule::exists('packages', 'id')],
-        ];
+        ], $this->attachmentRules());
     }
 }

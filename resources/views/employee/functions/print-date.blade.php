@@ -524,11 +524,11 @@
                             <thead>
                                 <tr>
                                     <th style="width: 21%">Package</th>
-                                    <th style="width: 24%">Service line</th>
+                                    <th style="width: 30%">Service line</th>
                                     <th style="width: 10%">Persons</th>
                                     <th style="width: 12%">Rate</th>
-                                    <th style="width: 15%">Extra charge</th>
-                                    <th style="width: 18%">Line total</th>
+                                    <th style="width: 12%">Extra charge</th>
+                                    <th style="width: 15%">Line total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -546,6 +546,20 @@
                                             <td>
                                                 <div class="cell-title">{{ $serviceLine->item_name_snapshot }}</div>
                                                 <div class="cell-muted">{{ $serviceLine->notes ?: 'No notes' }}</div>
+                                                @if ($serviceLine->service?->attachments?->isNotEmpty())
+                                                    <div class="link-list" style="margin-top: 8px;">
+                                                        @foreach ($serviceLine->service->attachments as $attachment)
+                                                            <div>
+                                                                <div class="cell-muted" style="margin-top: 0;">{{ $attachment->original_name }}</div>
+                                                                @if ($attachment->canPreviewInline())
+                                                                    <a href="{{ route($attachmentPreviewRoute, [$entry, $attachment]) }}" target="_blank">Open</a>
+                                                                    <span> | </span>
+                                                                @endif
+                                                                <a href="{{ route($attachmentDownloadRoute, [$entry, $attachment]) }}">Download</a>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
                                             </td>
                                             <td>{{ $serviceLine->usesPersonsField() ? $serviceLine->persons : 'No persons' }}</td>
                                             <td>{{ Money::formatMinor($serviceLine->rate_minor) }}</td>

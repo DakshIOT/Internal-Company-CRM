@@ -56,12 +56,9 @@ class EmployeeController extends Controller
     public function create(): View
     {
         return view('admin.master-data.employees.form', [
-            'assignedVenueIds' => [],
             'employee' => new User(['is_active' => true, 'role' => Role::EMPLOYEE_C]),
-            'frozenFunds' => [],
             'isEditing' => false,
             'roleOptions' => Role::options(),
-            'venues' => Venue::query()->orderBy('name')->get(),
         ]);
     }
 
@@ -76,7 +73,9 @@ class EmployeeController extends Controller
                 'password' => Hash::make($request->validated('password')),
             ]);
 
-            $this->syncVenues($employee, $request->validated('venue_ids', []), $request->validated('frozen_funds', []));
+            if ($request->has('venue_ids')) {
+                $this->syncVenues($employee, $request->validated('venue_ids', []), $request->validated('frozen_funds', []));
+            }
 
             return $employee;
         });
@@ -94,14 +93,9 @@ class EmployeeController extends Controller
         $employee->loadCount('venues');
 
         return view('admin.master-data.employees.form', [
-            'assignedVenueIds' => $employee->venues->pluck('id')->all(),
             'employee' => $employee,
-            'frozenFunds' => $employee->venues
-                ->mapWithKeys(fn (Venue $venue) => [$venue->id => Money::formatMinor($venue->pivot->frozen_fund_minor)])
-                ->all(),
             'isEditing' => true,
             'roleOptions' => Role::options(),
-            'venues' => Venue::query()->orderBy('name')->get(),
         ]);
     }
 
@@ -120,7 +114,24 @@ class EmployeeController extends Controller
 
         DB::transaction(function () use ($employee, $payload, $request) {
             $employee->update($payload);
-            $this->syncVenues($employee, $request->validated('venue_ids', []), $request->validated('frozen_funds', []));
+
+            if ($employee->isAdmin()) {
+                $this->syncVenues($employee, [], []);
+
+                return;
+            }
+
+            if ($request->has('venue_ids')) {
+                $this->syncVenues($employee, $request->validated('venue_ids', []), $request->validated('frozen_funds', []));
+
+                return;
+            }
+
+            if (! $employee->supportsFrozenFund()) {
+                foreach ($employee->venues as $venue) {
+                    $employee->venues()->updateExistingPivot($venue->id, ['frozen_fund_minor' => 0]);
+                }
+            }
         });
 
         return redirect()

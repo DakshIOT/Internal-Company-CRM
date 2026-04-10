@@ -10,7 +10,6 @@ use App\Models\FunctionPackage;
 use App\Models\Package;
 use App\Models\PackageServiceAssignment;
 use App\Models\Service;
-use App\Models\ServiceAssignment;
 use App\Services\Functions\FunctionEntryTotalsService;
 use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
@@ -43,11 +42,6 @@ class FunctionPackageController extends Controller
                 'code_snapshot' => $package->code,
             ]);
 
-            $assignedServiceIds = ServiceAssignment::query()
-                ->where('user_id', $request->user()->id)
-                ->where('venue_id', $functionEntry->venue_id)
-                ->pluck('service_id');
-
             $packageSpecificServiceIds = PackageServiceAssignment::query()
                 ->where('user_id', $request->user()->id)
                 ->where('venue_id', $functionEntry->venue_id)
@@ -55,11 +49,7 @@ class FunctionPackageController extends Controller
                 ->pluck('service_id');
 
             $services = $package->services()
-                ->when(
-                    $packageSpecificServiceIds->isNotEmpty(),
-                    fn ($query) => $query->whereIn('services.id', $packageSpecificServiceIds),
-                    fn ($query) => $query->whereIn('services.id', $assignedServiceIds)
-                )
+                ->whereIn('services.id', $packageSpecificServiceIds)
                 ->get([
                     'services.id',
                     'services.name',

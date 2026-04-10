@@ -15,7 +15,7 @@
 
     @include('admin.master-data.partials.nav')
 
-    <form method="POST" action="{{ $isEditing ? route('admin.master-data.services.update', $service) : route('admin.master-data.services.store') }}" class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+    <form method="POST" enctype="multipart/form-data" action="{{ $isEditing ? route('admin.master-data.services.update', $service) : route('admin.master-data.services.store') }}" class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         @csrf
         @if ($isEditing)
             @method('PUT')
@@ -165,6 +165,35 @@
                 </div>
                 <x-input-error :messages="$errors->get('package_ids')" class="mt-3" />
                 <x-input-error :messages="$errors->get('package_ids.*')" class="mt-3" />
+            </article>
+
+            <article class="crm-panel p-6">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="crm-section-title">Reference attachments</p>
+                        <h2 class="mt-2 text-xl font-semibold text-slate-950">Admin-only service files</h2>
+                        <p class="mt-3 text-sm leading-6 text-slate-600">
+                            Upload brochures, setup notes, sample layouts, or supporting files for this service. Employees can open and download these files later inside Function Entry, print sheets, and exports.
+                        </p>
+                    </div>
+                    @if ($isEditing)
+                        <span class="crm-chip bg-cyan-50 text-cyan-700">{{ $service->attachments->count() }} files</span>
+                    @endif
+                </div>
+
+                <div class="mt-5">
+                    @include('ledgers.partials.attachments', [
+                        'entry' => $service,
+                        'routeKey' => 'service',
+                        'previewRoute' => 'admin.master-data.services.attachments.preview',
+                        'downloadRoute' => 'admin.master-data.services.attachments.download',
+                        'destroyRoute' => 'admin.master-data.services.attachments.destroy',
+                        'allowDelete' => $isEditing,
+                        'showUpload' => true,
+                        'inputId' => 'service_attachments',
+                        'emptyMessage' => $isEditing ? 'No admin reference files attached to this service yet.' : null,
+                    ])
+                </div>
             </article>
         </section>
 

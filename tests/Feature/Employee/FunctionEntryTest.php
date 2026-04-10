@@ -111,6 +111,10 @@ class FunctionEntryTest extends TestCase
             'venue_id' => $venue->id,
             'package_id' => $package->id,
         ]);
+        $employee->packageServiceAssignments()->createMany([
+            ['venue_id' => $venue->id, 'package_id' => $package->id, 'service_id' => $serviceA->id],
+            ['venue_id' => $venue->id, 'package_id' => $package->id, 'service_id' => $serviceB->id],
+        ]);
 
         $this->actingAs($employee)
             ->withSession(['selected_venue_id' => $venue->id])
@@ -218,6 +222,11 @@ class FunctionEntryTest extends TestCase
             'venue_id' => $venue->id,
             'package_id' => $package->id,
         ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
 
         $this->actingAs($employee)
             ->withSession(['selected_venue_id' => $venue->id])
@@ -284,6 +293,11 @@ class FunctionEntryTest extends TestCase
         $employee->packageAssignments()->create([
             'venue_id' => $venue->id,
             'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
         ]);
 
         $this->actingAs($employee)
@@ -494,11 +508,17 @@ class FunctionEntryTest extends TestCase
 
     public function test_employee_can_export_function_register_to_excel_without_currency_symbols(): void
     {
+        Storage::fake('local');
+
         $employee = User::factory()->employeeA()->create();
         $venue = Venue::factory()->create(['name' => 'Garden Court']);
         $this->assignEmployeeToVenue($employee, $venue, 10000);
 
-        FunctionEntry::factory()->create([
+        $service = Service::factory()->create(['name' => 'Export Photography']);
+        $package = Package::factory()->create(['name' => 'Export Package']);
+        $package->services()->attach($service->id, ['sort_order' => 1]);
+
+        $entry = FunctionEntry::factory()->create([
             'user_id' => $employee->id,
             'venue_id' => $venue->id,
             'entry_date' => '2026-03-30',
@@ -509,6 +529,31 @@ class FunctionEntryTest extends TestCase
             'frozen_fund_minor' => 10000,
             'net_total_after_frozen_fund_minor' => 15000,
         ]);
+        $functionPackage = $entry->packages()->create([
+            'package_id' => $package->id,
+            'name_snapshot' => 'Export Package',
+            'code_snapshot' => 'EXP-PKG',
+            'total_minor' => 25000,
+        ]);
+        $functionPackage->serviceLines()->create([
+            'service_id' => $service->id,
+            'sort_order' => 1,
+            'is_selected' => true,
+            'item_name_snapshot' => 'Export Photography',
+            'rate_minor' => 25000,
+            'person_input_mode' => 'fixed',
+            'persons' => 1,
+            'extra_charge_minor' => 0,
+            'line_total_minor' => 25000,
+        ]);
+        $serviceAttachment = $service->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/service-export-guide.pdf',
+            'original_name' => 'service-export-guide.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1200,
+        ]);
 
         Excel::fake();
 
@@ -517,7 +562,7 @@ class FunctionEntryTest extends TestCase
             ->get(route('employee.functions.export', ['entry_date' => '2026-03-30']))
             ->assertOk();
 
-        Excel::assertDownloaded('function-register-export.xlsx', function ($export) {
+        Excel::assertDownloaded('function-register-export.xlsx', function ($export) use ($entry, $serviceAttachment) {
             $this->assertInstanceOf(WorkbookExport::class, $export);
 
             $sheets = $export->sheets();
@@ -535,6 +580,13 @@ class FunctionEntryTest extends TestCase
             $this->assertStringNotContainsString('USD', $serialized);
             $this->assertSame('Function Total', $sheets[0]->array()[7][0]);
             $this->assertSame('Entry Date', $sheets[1]->array()[0][0]);
+            $this->assertContains('Service Attachment Names', $sheets[1]->array()[0]);
+            $this->assertContains('Service Attachment Download URLs', $sheets[1]->array()[0]);
+            $this->assertStringContainsString('service-export-guide.pdf', $serialized);
+            $this->assertStringContainsString(
+                str_replace('/', '\\/', (string) route('employee.functions.attachments.download', [$entry, $serviceAttachment])),
+                $serialized
+            );
 
             return true;
         });
@@ -639,6 +691,14 @@ class FunctionEntryTest extends TestCase
             'notes' => 'Lead crew',
             'line_total_minor' => 24000,
         ]);
+        $serviceAttachment = $service->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/service-brief.pdf',
+            'original_name' => 'service-brief.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 850,
+        ]);
 
         $extraCharge = $entry->extraCharges()->create([
             'entry_date' => '2026-03-30',
@@ -710,10 +770,64 @@ class FunctionEntryTest extends TestCase
             ->assertSee('Dummy terms.')
             ->assertSee('Customer Signature')
             ->assertSee('Manager Signature')
+            ->assertSee('service-brief.pdf')
             ->assertSee('base-brief.pdf')
             ->assertSee('extra-proof.pdf')
+            ->assertSee(route('employee.functions.attachments.download', [$entry, $serviceAttachment]), false)
             ->assertSee(route('employee.functions.attachments.download', [$entry, $baseAttachment]), false)
             ->assertSee(route('employee.functions.attachments.download', [$entry, $extraAttachment]), false);
+    }
+
+    public function test_employee_can_preview_and_download_service_attachment_linked_through_function_package(): void
+    {
+        Storage::fake('local');
+
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $service = Service::factory()->create(['name' => 'Lighting Guide']);
+        Storage::disk('local')->put('attachments/service-lighting-guide.pdf', 'service guide');
+        $serviceAttachment = $service->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/service-lighting-guide.pdf',
+            'original_name' => 'service-lighting-guide.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 640,
+        ]);
+        $package = Package::factory()->create();
+        $functionEntry = FunctionEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-31',
+        ]);
+        $functionPackage = $functionEntry->packages()->create([
+            'package_id' => $package->id,
+            'name_snapshot' => 'Lighting Package',
+            'total_minor' => 9000,
+        ]);
+        $functionPackage->serviceLines()->create([
+            'service_id' => $service->id,
+            'sort_order' => 1,
+            'is_selected' => true,
+            'item_name_snapshot' => 'Lighting Guide',
+            'rate_minor' => 9000,
+            'person_input_mode' => 'none',
+            'persons' => 0,
+            'extra_charge_minor' => 0,
+            'line_total_minor' => 9000,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.attachments.preview', [$functionEntry, $serviceAttachment]))
+            ->assertOk();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.attachments.download', [$functionEntry, $serviceAttachment]))
+            ->assertOk();
     }
 
     private function assignEmployeeToVenue(User $employee, Venue $venue, int $frozenFundMinor = 0): void

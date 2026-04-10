@@ -5,6 +5,15 @@
     $entryCollection = $entries instanceof Paginator ? collect($entries->items()) : collect($entries);
     $dateGroups = $entryCollection->groupBy(fn ($entry) => optional($entry->entry_date)->toDateString());
     $entryTotal = $entries instanceof Paginator ? $entries->total() : $entryCollection->count();
+    $printQuery = array_filter([
+        'search' => $filters['search'] ?? null,
+        'entry_date' => $filters['entry_date'] ?? null,
+        'print' => 1,
+    ], fn ($value) => ! is_null($value) && $value !== '');
+    $exportQuery = array_filter([
+        'search' => $filters['search'] ?? null,
+        'entry_date' => $filters['entry_date'] ?? null,
+    ], fn ($value) => ! is_null($value) && $value !== '');
 @endphp
 
 <x-app-layout>
@@ -17,8 +26,10 @@
                     Global admin-only income tracking with date totals, grand totals, and secured attachments.
                 </p>
             </div>
-            <div class="crm-page-header-actions">
+            <div class="crm-page-header-actions crm-print-hidden">
                 <span class="crm-chip bg-slate-950 text-white">Global Admin Context</span>
+                <a href="{{ route('admin.admin-income.index', $printQuery) }}" target="_blank" class="crm-button crm-button-secondary justify-center">Print full list</a>
+                <a href="{{ route('admin.admin-income.export', $exportQuery) }}" class="crm-button crm-button-secondary justify-center">Export Excel</a>
                 <a href="{{ route('admin.admin-income.create') }}" class="crm-button crm-button-primary justify-center">Create entry</a>
             </div>
         </div>
@@ -103,7 +114,13 @@
                                     Date Total {{ \Illuminate\Support\Carbon::parse($date)->format('d M Y') }}
                                 </td>
                                 <td class="font-semibold text-slate-950">{{ Money::formatMinor($dateTotal) }}</td>
-                                <td></td>
+                                <td class="crm-print-hidden">
+                                    <div class="flex justify-end">
+                                        <a href="{{ route('admin.admin-income.print-date', ['entryDate' => $date]) }}" target="_blank" class="crm-button crm-button-secondary px-4 py-2">
+                                            Print date
+                                        </a>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
@@ -125,8 +142,16 @@
             </div>
         </section>
 
-        @if ($entries->hasPages())
+        @if ($entries instanceof Paginator && $entries->hasPages())
             {{ $entries->links() }}
         @endif
     </div>
+
+    @if ($isPrint)
+        <script>
+            window.addEventListener('load', function () {
+                window.print();
+            });
+        </script>
+    @endif
 </x-app-layout>

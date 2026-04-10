@@ -7,6 +7,7 @@ use App\Models\FunctionEntry;
 use App\Models\FunctionPackage;
 use App\Models\Package;
 use App\Models\PackageAssignment;
+use App\Models\PackageServiceAssignment;
 use App\Models\Service;
 use App\Models\ServiceAssignment;
 use App\Models\User;
@@ -46,6 +47,12 @@ class FunctionEntryWorkflowTest extends TestCase
             'user_id' => $employee->id,
             'venue_id' => $venue->id,
             'package_id' => $package->id,
+        ]);
+        PackageServiceAssignment::create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
         ]);
 
         $response = $this->actingAs($employee)

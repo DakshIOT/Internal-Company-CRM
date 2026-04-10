@@ -85,3 +85,16 @@
 - Prefer simple, hosting-safe Laravel patterns over overengineered abstractions.
 - Do not simplify business rules unless `PROJECT_PLAN.md` is intentionally updated.
 - When implementation details are missing, choose the option that preserves venue isolation, calculation accuracy, premium responsiveness, and Hostinger compatibility.
+
+## Hostinger Deployment Memory
+- The current production deployment SOP is stored in [`docs/HOSTINGER_DEPLOY.md`](docs/HOSTINGER_DEPLOY.md).
+- Current live Hostinger target:
+  - domain: `outdooreventspro.co.in`
+  - app path: `/home/u862687956/crm-app`
+  - public root: `/home/u862687956/domains/outdooreventspro.co.in/public_html`
+  - database: `u862687956_Internal_crm`
+  - database user: `u862687956_crm`
+  - DB host/port: `localhost:3306`
+- For this host, build frontend assets locally and upload `public/build`; do not expect `npm` on the server.
+- For this host, do not rely on `php artisan storage:link`; use the storage copy fallback documented in the SOP.
+- Preserve the live Laravel `index.php` with absolute paths into `/home/u862687956/crm-app`; replacing it with a default Hostinger file will break the app.

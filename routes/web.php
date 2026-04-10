@@ -46,6 +46,10 @@ Route::middleware(['auth', 'role:admin'])
     ->name('admin.')
     ->group(function () {
         Route::get('/dashboard', AdminReportsDashboardController::class)->name('dashboard');
+        Route::get('/admin-income/export', [AdminIncomeEntryController::class, 'export'])
+            ->name('admin-income.export');
+        Route::get('/admin-income/print/date/{entryDate}', [AdminIncomeEntryController::class, 'printDate'])
+            ->name('admin-income.print-date');
         Route::resource('admin-income', AdminIncomeEntryController::class)
             ->parameters(['admin-income' => 'adminIncome']);
         Route::get('/admin-income/{adminIncome}/attachments/{attachment}/preview', [AdminIncomeEntryController::class, 'preview'])
@@ -81,11 +85,29 @@ Route::middleware(['auth', 'role:admin'])
                 Route::resource('employees', EmployeeController::class)
                     ->parameters(['employees' => 'employee'])
                     ->except(['show', 'destroy']);
-                Route::get('/employees/{employee}/assignments', [EmployeeAssignmentController::class, 'edit'])
-                    ->name('employees.assignments.edit');
-                Route::put('/employees/{employee}/assignments', [EmployeeAssignmentController::class, 'update'])
-                    ->name('employees.assignments.update');
+                Route::prefix('/employees/{employee}/assignments')
+                    ->name('employees.assignments.')
+                    ->group(function () {
+                        Route::get('/', [EmployeeAssignmentController::class, 'edit'])->name('edit');
+                        Route::put('/', [EmployeeAssignmentController::class, 'update'])->name('update');
+                        Route::post('/venues', [EmployeeAssignmentController::class, 'storeVenue'])->name('venues.store');
+                        Route::post('/venues/attach', [EmployeeAssignmentController::class, 'attachVenue'])->name('venues.attach');
+                        Route::put('/venues/{venue}', [EmployeeAssignmentController::class, 'updateVenue'])->name('venues.update');
+                        Route::delete('/venues/{venue}', [EmployeeAssignmentController::class, 'destroyVenue'])->name('venues.destroy');
+                        Route::post('/venues/{venue}/packages', [EmployeeAssignmentController::class, 'storePackage'])->name('packages.store');
+                        Route::post('/venues/{venue}/packages/attach', [EmployeeAssignmentController::class, 'attachPackage'])->name('packages.attach');
+                        Route::delete('/venues/{venue}/packages/{package}', [EmployeeAssignmentController::class, 'destroyPackage'])->name('packages.destroy');
+                        Route::post('/venues/{venue}/packages/{package}/services', [EmployeeAssignmentController::class, 'storeService'])->name('services.store');
+                        Route::post('/venues/{venue}/packages/{package}/services/attach', [EmployeeAssignmentController::class, 'attachService'])->name('services.attach');
+                        Route::delete('/venues/{venue}/packages/{package}/services/{service}', [EmployeeAssignmentController::class, 'destroyService'])->name('services.destroy');
+                    });
                 Route::resource('services', ServiceController::class)->except('show');
+                Route::get('services/{service}/attachments/{attachment}/preview', [ServiceController::class, 'preview'])
+                    ->name('services.attachments.preview');
+                Route::get('services/{service}/attachments/{attachment}', [ServiceController::class, 'download'])
+                    ->name('services.attachments.download');
+                Route::delete('services/{service}/attachments/{attachment}', [ServiceController::class, 'destroyAttachment'])
+                    ->name('services.attachments.destroy');
                 Route::resource('packages', PackageController::class)->except('show');
                 Route::get('/function-print-settings', [FunctionPrintSettingController::class, 'edit'])
                     ->name('function-print-settings.edit');
@@ -112,6 +134,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
         Route::middleware('role:employee_a,employee_b')->group(function () {
             Route::get('/daily-income/export', [DailyIncomeEntryController::class, 'export'])
                 ->name('daily-income.export');
+            Route::get('/daily-income/print/date/{entryDate}', [DailyIncomeEntryController::class, 'printDate'])
+                ->name('daily-income.print-date');
             Route::resource('daily-income', DailyIncomeEntryController::class)
                 ->parameters(['daily-income' => 'dailyIncome']);
             Route::get('/daily-income/{dailyIncome}/attachments/{attachment}/preview', [DailyIncomeEntryController::class, 'preview'])
@@ -123,6 +147,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
 
             Route::get('/daily-billing/export', [DailyBillingEntryController::class, 'export'])
                 ->name('daily-billing.export');
+            Route::get('/daily-billing/print/date/{entryDate}', [DailyBillingEntryController::class, 'printDate'])
+                ->name('daily-billing.print-date');
             Route::resource('daily-billing', DailyBillingEntryController::class)
                 ->parameters(['daily-billing' => 'dailyBilling']);
             Route::get('/daily-billing/{dailyBilling}/attachments/{attachment}/preview', [DailyBillingEntryController::class, 'preview'])
@@ -136,6 +162,8 @@ Route::middleware(['auth', 'role:employee', 'venue.selected'])
         Route::middleware('role:employee_b')->group(function () {
             Route::get('/vendor-entries/export', [VendorEntryController::class, 'export'])
                 ->name('vendor-entries.export');
+            Route::get('/vendor-entries/print/date/{entryDate}', [VendorEntryController::class, 'printDate'])
+                ->name('vendor-entries.print-date');
             Route::resource('vendor-entries', VendorEntryController::class)
                 ->parameters(['vendor-entries' => 'vendorEntry']);
             Route::put('/vendor-entries/vendors/{venueVendor}', [VendorEntryController::class, 'updateVendorName'])

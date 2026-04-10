@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Reports\Filters\ReportFilters;
+use App\Support\Attachments\AttachmentExportFormatter;
 use App\Services\Reports\Concerns\AppliesReportFilters;
 use App\Support\Money;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -106,6 +107,19 @@ abstract class AbstractAmountReportQuery
             ['Record Count', $summary['entry_count']],
             ['Amount', Money::toDecimal($summary['amount_minor'])],
         ];
+    }
+
+    protected function attachmentNames($entry): string
+    {
+        return AttachmentExportFormatter::names($entry->attachments ?? collect());
+    }
+
+    protected function attachmentDownloadUrls($entry): string
+    {
+        return AttachmentExportFormatter::urls(
+            $entry->attachments ?? collect(),
+            fn ($attachment) => route('admin.reports.attachments.download', $attachment)
+        );
     }
 
     abstract protected function exportHeadings(): array;

@@ -119,6 +119,32 @@ class LedgerEntryTest extends TestCase
         ]);
     }
 
+    public function test_employee_ledger_attachment_validation_rejects_unsupported_file_types(): void
+    {
+        Storage::fake('local');
+
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->from(route('employee.daily-income.create'))
+            ->post(route('employee.daily-income.store'), [
+                'entry_date' => '2026-03-31',
+                'name' => 'Invalid file income',
+                'amount' => '100.00',
+                'attachments' => [
+                    UploadedFile::fake()->create('bad.css', 4, 'text/css'),
+                ],
+            ])
+            ->assertRedirect(route('employee.daily-income.create'));
+
+        $this->assertDatabaseMissing('daily_income_entries', [
+            'name' => 'Invalid file income',
+        ]);
+    }
+
     public function test_employee_c_cannot_access_phase_four_employee_ledgers(): void
     {
         $employee = User::factory()->employeeC()->create();
@@ -309,20 +335,36 @@ class LedgerEntryTest extends TestCase
         $venue = Venue::factory()->create(['name' => 'Sky Hall']);
         $this->assignEmployeeToVenue($employee, $venue);
 
-        DailyIncomeEntry::factory()->create([
+        $incomeEntry = DailyIncomeEntry::factory()->create([
             'user_id' => $employee->id,
             'venue_id' => $venue->id,
             'entry_date' => '2026-03-31',
             'name' => 'Income Row',
             'amount_minor' => 12345,
         ]);
+        $incomeAttachment = $incomeEntry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/daily-income-proof.pdf',
+            'original_name' => 'daily-income-proof.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
 
-        DailyBillingEntry::factory()->create([
+        $billingEntry = DailyBillingEntry::factory()->create([
             'user_id' => $employee->id,
             'venue_id' => $venue->id,
             'entry_date' => '2026-03-31',
             'name' => 'Billing Row',
             'amount_minor' => 67890,
+        ]);
+        $billingAttachment = $billingEntry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/daily-billing-proof.pdf',
+            'original_name' => 'daily-billing-proof.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
         ]);
 
         Excel::fake();
@@ -337,22 +379,39 @@ class LedgerEntryTest extends TestCase
             ->get(route('employee.daily-billing.export', ['entry_date' => '2026-03-31']))
             ->assertOk();
 
-        Excel::assertDownloaded('daily-income-register-export.xlsx', function ($export) {
+        Excel::assertDownloaded('daily-income-register-export.xlsx', function ($export) use ($incomeAttachment, $incomeEntry) {
             $this->assertInstanceOf(WorkbookExport::class, $export);
-            $serialized = json_encode([$export->sheets()[0]->array(), $export->sheets()[1]->array()], JSON_THROW_ON_ERROR);
-            $this->assertStringNotContainsString('â‚¹', $serialized);
+            $summary = $export->sheets()[0]->array();
+            $entries = $export->sheets()[1]->array();
+            $serialized = json_encode([$summary, $entries], JSON_THROW_ON_ERROR);
+            $this->assertStringNotContainsString('Ã¢â€šÂ¹', $serialized);
             $this->assertStringNotContainsString('INR', $serialized);
-            $this->assertSame('Amount', $export->sheets()[0]->array()[9][0]);
+            $this->assertSame('Amount', $summary[9][0]);
+            $this->assertSame('Attachment Names', $entries[0][7]);
+            $this->assertSame('Attachment Download URLs', $entries[0][8]);
+            $this->assertSame('daily-income-proof.pdf', $entries[1][7]);
+            $this->assertSame(
+                route('employee.daily-income.attachments.download', ['dailyIncome' => $incomeEntry, 'attachment' => $incomeAttachment]),
+                $entries[1][8]
+            );
 
             return true;
         });
 
-        Excel::assertDownloaded('daily-billing-register-export.xlsx', function ($export) {
+        Excel::assertDownloaded('daily-billing-register-export.xlsx', function ($export) use ($billingAttachment, $billingEntry) {
             $this->assertInstanceOf(WorkbookExport::class, $export);
-            $serialized = json_encode([$export->sheets()[0]->array(), $export->sheets()[1]->array()], JSON_THROW_ON_ERROR);
-            $this->assertStringNotContainsString('â‚¹', $serialized);
+            $entries = $export->sheets()[1]->array();
+            $serialized = json_encode([$export->sheets()[0]->array(), $entries], JSON_THROW_ON_ERROR);
+            $this->assertStringNotContainsString('Ã¢â€šÂ¹', $serialized);
             $this->assertStringNotContainsString('INR', $serialized);
-            $this->assertSame('Entry Date', $export->sheets()[1]->array()[0][0]);
+            $this->assertSame('Entry Date', $entries[0][0]);
+            $this->assertSame('Attachment Names', $entries[0][7]);
+            $this->assertSame('Attachment Download URLs', $entries[0][8]);
+            $this->assertSame('daily-billing-proof.pdf', $entries[1][7]);
+            $this->assertSame(
+                route('employee.daily-billing.attachments.download', ['dailyBilling' => $billingEntry, 'attachment' => $billingAttachment]),
+                $entries[1][8]
+            );
 
             return true;
         });
@@ -372,7 +431,7 @@ class LedgerEntryTest extends TestCase
         $vendor = $venue->vendors->firstWhere('slot_number', 1);
         $this->assignEmployeeToVenue($employee, $venue);
 
-        VendorEntry::factory()->create([
+        $vendorEntry = VendorEntry::factory()->create([
             'user_id' => $employee->id,
             'venue_id' => $venue->id,
             'venue_vendor_id' => $vendor->id,
@@ -380,6 +439,14 @@ class LedgerEntryTest extends TestCase
             'entry_date' => '2026-03-31',
             'name' => 'Vendor Row',
             'amount_minor' => 50500,
+        ]);
+        $vendorAttachment = $vendorEntry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/vendor-proof.pdf',
+            'original_name' => 'vendor-proof.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
         ]);
 
         Excel::fake();
@@ -389,23 +456,117 @@ class LedgerEntryTest extends TestCase
             ->get(route('employee.vendor-entries.export', ['venue_vendor_id' => $vendor->id]))
             ->assertOk();
 
-        Excel::assertDownloaded('vendor-register-export.xlsx', function ($export) {
+        Excel::assertDownloaded('vendor-register-export.xlsx', function ($export) use ($vendorAttachment, $vendorEntry) {
             $this->assertInstanceOf(WorkbookExport::class, $export);
             $this->assertCount(4, $export->sheets());
 
+            $entries = $export->sheets()[1]->array();
             $serialized = json_encode([
                 $export->sheets()[0]->array(),
-                $export->sheets()[1]->array(),
+                $entries,
                 $export->sheets()[2]->array(),
                 $export->sheets()[3]->array(),
             ], JSON_THROW_ON_ERROR);
 
-            $this->assertStringNotContainsString('â‚¹', $serialized);
+            $this->assertStringNotContainsString('Ã¢â€šÂ¹', $serialized);
             $this->assertStringNotContainsString('Rs', $serialized);
             $this->assertSame('Vendor', $export->sheets()[3]->array()[0][0]);
+            $this->assertSame('Attachment Names', $entries[0][8]);
+            $this->assertSame('Attachment Download URLs', $entries[0][9]);
+            $this->assertSame('vendor-proof.pdf', $entries[1][8]);
+            $this->assertSame(
+                route('employee.vendor-entries.attachments.download', ['vendorEntry' => $vendorEntry, 'attachment' => $vendorAttachment]),
+                $entries[1][9]
+            );
 
             return true;
         });
+    }
+
+    public function test_employee_can_open_date_print_views_for_daily_income_billing_and_vendor_entries(): void
+    {
+        $employee = User::factory()->employeeB()->create();
+        $venue = Venue::factory()->create(['name' => 'Garden Court']);
+        $venue->syncVendorSlots([
+            1 => 'Vendor One',
+            2 => 'Vendor Two',
+            3 => 'Vendor Three',
+            4 => 'Vendor Four',
+        ]);
+        $venue->load('vendors');
+        $vendor = $venue->vendors->firstWhere('slot_number', 1);
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $incomeEntry = DailyIncomeEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-31',
+            'name' => 'Income Row',
+            'amount_minor' => 12345,
+        ]);
+        $incomeAttachment = $incomeEntry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/print-income.pdf',
+            'original_name' => 'print-income.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
+
+        $billingEntry = DailyBillingEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-03-31',
+            'name' => 'Billing Row',
+            'amount_minor' => 67890,
+        ]);
+        $billingAttachment = $billingEntry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/print-billing.pdf',
+            'original_name' => 'print-billing.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
+
+        $vendorEntry = VendorEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'venue_vendor_id' => $vendor->id,
+            'vendor_name_snapshot' => $vendor->name,
+            'entry_date' => '2026-03-31',
+            'name' => 'Vendor Row',
+            'amount_minor' => 50500,
+        ]);
+        $vendorAttachment = $vendorEntry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/print-vendor.pdf',
+            'original_name' => 'print-vendor.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.daily-income.print-date', ['entryDate' => '2026-03-31']))
+            ->assertOk()
+            ->assertSee('print-income.pdf')
+            ->assertSee(route('employee.daily-income.attachments.download', ['dailyIncome' => $incomeEntry, 'attachment' => $incomeAttachment]), false);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.daily-billing.print-date', ['entryDate' => '2026-03-31']))
+            ->assertOk()
+            ->assertSee('print-billing.pdf')
+            ->assertSee(route('employee.daily-billing.attachments.download', ['dailyBilling' => $billingEntry, 'attachment' => $billingAttachment]), false);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.vendor-entries.print-date', ['entryDate' => '2026-03-31']))
+            ->assertOk()
+            ->assertSee('print-vendor.pdf')
+            ->assertSee(route('employee.vendor-entries.attachments.download', ['vendorEntry' => $vendorEntry, 'attachment' => $vendorAttachment]), false);
     }
 
     private function assignEmployeeToVenue(User $employee, Venue $venue): void

@@ -87,7 +87,22 @@
                                         <td>
                                             <input type="checkbox" name="service_lines[{{ $line->id }}][is_selected]" value="1" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked($line->is_selected) />
                                         </td>
-                                        <td class="font-semibold text-slate-900">{{ $line->item_name_snapshot }}</td>
+                                        <td>
+                                            <div class="font-semibold text-slate-900">{{ $line->item_name_snapshot }}</div>
+                                            @if ($line->service?->attachments?->isNotEmpty())
+                                                <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                                                    @foreach ($line->service->attachments as $attachment)
+                                                        <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">
+                                                            <span>{{ $attachment->original_name }}</span>
+                                                            @if ($attachment->canPreviewInline())
+                                                                <a href="{{ route('employee.functions.attachments.preview', [$functionEntry, $attachment]) }}" target="_blank" class="font-semibold text-slate-900 underline">Open</a>
+                                                            @endif
+                                                            <a href="{{ route('employee.functions.attachments.download', [$functionEntry, $attachment]) }}" class="font-semibold text-slate-900 underline">Download</a>
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </td>
                                         <td>
                                             @if ($line->allowsEmployeePersonEntry())
                                                 <x-text-input

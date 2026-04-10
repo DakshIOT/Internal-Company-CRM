@@ -18,6 +18,7 @@ use App\Models\VenueVendor;
 use App\Support\Role;
 use App\Support\Reports\ReportModule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
@@ -107,6 +108,8 @@ class ReportingTest extends TestCase
 
     public function test_function_export_download_uses_plain_numeric_workbook_without_currency_markers(): void
     {
+        Storage::fake('local');
+
         [$admin, $venueA, $venueB, $employeeA] = $this->seedReportData();
 
         Excel::fake();
@@ -136,6 +139,9 @@ class ReportingTest extends TestCase
             $this->assertStringNotContainsString('USD', $serialized);
             $this->assertSame('Function Total', $summary[10][0]);
             $this->assertSame('Entry Date', $entries[0][0]);
+            $this->assertContains('Service Attachment Names', $entries[0]);
+            $this->assertContains('Service Attachment Download URLs', $entries[0]);
+            $this->assertStringContainsString('report-photography-guide.pdf', $serialized);
 
             return true;
         });
@@ -211,6 +217,14 @@ class ReportingTest extends TestCase
         $package = Package::factory()->create(['name' => 'Wedding Prime']);
         $service = Service::factory()->create(['name' => 'Photography']);
         $package->services()->attach($service->id, ['sort_order' => 1]);
+        $service->attachments()->create([
+            'uploaded_by' => $admin->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/report-photography-guide.pdf',
+            'original_name' => 'report-photography-guide.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
 
         $functionA = FunctionEntry::factory()->create([
             'user_id' => $employeeA->id,

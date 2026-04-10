@@ -64,7 +64,7 @@
                                     <div class="flex flex-wrap gap-2">
                                         <a href="{{ route('admin.master-data.employees.edit', $employee) }}" class="crm-button crm-button-secondary">Edit</a>
                                         @if ($employee->isEmployee())
-                                            <a href="{{ route('admin.master-data.employees.assignments.edit', $employee) }}" class="crm-button crm-button-secondary">Assignments</a>
+                                            <a href="{{ route('admin.master-data.employees.assignments.edit', $employee) }}" class="crm-button crm-button-secondary">Setup</a>
                                         @endif
                                     </div>
                                 </td>

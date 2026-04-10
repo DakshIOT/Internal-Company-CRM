@@ -67,6 +67,14 @@ class FunctionEntryController extends Controller
         $query = $this->indexQuery($request);
 
         $entries = (clone $query)
+            ->with([
+                'attachments' => fn ($builder) => $builder
+                    ->select(['id', 'attachable_id', 'attachable_type', 'original_name', 'mime_type', 'disk', 'storage_path'])
+                    ->orderBy('id'),
+                'packages.serviceLines.service.attachments' => fn ($builder) => $builder
+                    ->select(['id', 'attachable_id', 'attachable_type', 'original_name', 'mime_type', 'disk', 'storage_path'])
+                    ->orderBy('id'),
+            ])
             ->withCount(['packages', 'extraCharges', 'installments', 'discounts', 'attachments'])
             ->orderByDesc('entry_date')
             ->orderByDesc('id')
@@ -108,7 +116,7 @@ class FunctionEntryController extends Controller
             ->with([
                 'venue',
                 'attachments',
-                'packages.serviceLines',
+                'packages.serviceLines.service.attachments',
                 'extraCharges.attachments',
                 'installments.attachments',
                 'discounts.attachments',
@@ -191,7 +199,7 @@ class FunctionEntryController extends Controller
         $functionEntry->load([
             'venue',
             'attachments',
-            'packages.serviceLines.service',
+            'packages.serviceLines.service.attachments',
             'extraCharges.attachments',
             'installments.attachments',
             'discounts.attachments',

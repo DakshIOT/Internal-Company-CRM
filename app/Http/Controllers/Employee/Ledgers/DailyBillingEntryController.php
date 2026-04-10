@@ -64,6 +64,11 @@ class DailyBillingEntryController extends Controller
         $query = $this->indexQuery($request);
 
         $entries = (clone $query)
+            ->with([
+                'attachments' => fn ($builder) => $builder
+                    ->select(['id', 'attachable_id', 'attachable_type', 'original_name', 'mime_type', 'disk', 'storage_path'])
+                    ->orderBy('id'),
+            ])
             ->withCount('attachments')
             ->orderByDesc('entry_date')
             ->orderByDesc('id')
@@ -80,10 +85,54 @@ class DailyBillingEntryController extends Controller
                 $entries,
                 $summary,
                 $dateTotals,
-                'Daily Billing'
+                'Daily Billing',
+                'employee.daily-billing.attachments.download',
+                'dailyBilling'
             )),
             'daily-billing-register-export.xlsx'
         );
+    }
+
+    public function printDate(Request $request, string $entryDate): View
+    {
+        $this->authorize('viewAny', DailyBillingEntry::class);
+
+        $user = $request->user();
+        $venueId = $this->selectedVenueId($request);
+        $venue = $user->venues()->whereKey($venueId)->firstOrFail();
+
+        try {
+            $printDate = Carbon::createFromFormat('Y-m-d', $entryDate)->toDateString();
+        } catch (\Throwable) {
+            abort(404);
+        }
+
+        $entries = DailyBillingEntry::query()
+            ->forWorkspace($user, $venueId)
+            ->whereDate('entry_date', $printDate)
+            ->with(['attachments', 'venue'])
+            ->withCount('attachments')
+            ->orderBy('id')
+            ->get();
+
+        abort_if($entries->isEmpty(), 404);
+
+        return view('ledgers.print-date', [
+            'backRoute' => route('employee.daily-billing.index', ['entry_date' => $printDate]),
+            'currentVenue' => $venue,
+            'downloadRoute' => 'employee.daily-billing.attachments.download',
+            'entries' => $entries,
+            'moduleLabel' => 'Daily Billing',
+            'previewRoute' => 'employee.daily-billing.attachments.preview',
+            'printDate' => Carbon::parse($printDate),
+            'routeKey' => 'dailyBilling',
+            'showVenue' => false,
+            'showVendor' => false,
+            'totals' => [
+                'entry_count' => $entries->count(),
+                'amount_minor' => (int) $entries->sum('amount_minor'),
+            ],
+        ]);
     }
 
     public function create(Request $request): View

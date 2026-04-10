@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasAttachments;
+use App\Models\FunctionPackage;
+use App\Models\Service;
+use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -69,5 +72,16 @@ class FunctionEntry extends Model
         return $query
             ->where('user_id', $user->getKey())
             ->where('venue_id', $venueId);
+    }
+
+    public function serviceAttachments(): Collection
+    {
+        return $this->packages
+            ->flatMap(fn (FunctionPackage $package) => $package->serviceLines)
+            ->map->service
+            ->filter()
+            ->flatMap(fn (Service $service) => $service->attachments)
+            ->unique('id')
+            ->values();
     }
 }

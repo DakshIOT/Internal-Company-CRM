@@ -5,16 +5,23 @@ namespace App\Http\Controllers\Admin\MasterData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\MasterData\StoreServiceRequest;
 use App\Http\Requests\Admin\MasterData\UpdateServiceRequest;
+use App\Models\Attachment;
 use App\Models\Package;
 use App\Models\Service;
+use App\Services\Files\AttachmentService;
 use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class ServiceController extends Controller
 {
+    public function __construct(private AttachmentService $attachmentService)
+    {
+    }
+
     public function index(Request $request): View
     {
         $query = Service::query()
@@ -59,7 +66,7 @@ class ServiceController extends Controller
         $data = $request->validated();
         $personInputMode = $data['person_input_mode'] ?? Service::PERSON_MODE_FIXED;
 
-        DB::transaction(function () use ($data, $personInputMode) {
+        DB::transaction(function () use ($request, $data, $personInputMode) {
             $service = Service::create([
                 'name' => $data['name'],
                 'code' => $data['code'] ?: null,
@@ -74,6 +81,7 @@ class ServiceController extends Controller
             ]);
 
             $this->syncPackages($service, $data['package_ids'] ?? []);
+            $this->attachmentService->storeFor($service, $request->file('attachments', []), $request->user());
         });
 
         return redirect()
@@ -84,7 +92,7 @@ class ServiceController extends Controller
     public function edit(Service $service): View
     {
         return view('admin.master-data.services.form', [
-            'service' => $service->loadCount(['packages', 'assignments']),
+            'service' => $service->loadCount(['packages', 'assignments'])->load('attachments'),
             'isEditing' => true,
             'packages' => Package::query()->orderBy('name')->get(['id', 'name', 'code']),
             'selectedPackageIds' => $service->packages()->pluck('packages.id')->all(),
@@ -96,7 +104,7 @@ class ServiceController extends Controller
         $data = $request->validated();
         $personInputMode = $data['person_input_mode'] ?? Service::PERSON_MODE_FIXED;
 
-        DB::transaction(function () use ($service, $data, $personInputMode) {
+        DB::transaction(function () use ($request, $service, $data, $personInputMode) {
             $service->update([
                 'name' => $data['name'],
                 'code' => $data['code'] ?: null,
@@ -111,6 +119,7 @@ class ServiceController extends Controller
             ]);
 
             $this->syncPackages($service, $data['package_ids'] ?? []);
+            $this->attachmentService->storeFor($service, $request->file('attachments', []), $request->user());
         });
 
         return redirect()
@@ -120,11 +129,43 @@ class ServiceController extends Controller
 
     public function destroy(Service $service): RedirectResponse
     {
+        $service->load('attachments');
+        $service->attachments->each(fn (Attachment $attachment) => $this->attachmentService->delete($attachment));
         $service->delete();
 
         return redirect()
             ->route('admin.master-data.services.index')
             ->with('status', 'Service deleted successfully.');
+    }
+
+    public function preview(Request $request, Service $service, Attachment $attachment)
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+        $attachment = $this->resolveAttachment($service, $attachment);
+        abort_unless($attachment->canPreviewInline(), 404);
+
+        return Storage::disk($attachment->disk)->response(
+            $attachment->storage_path,
+            $attachment->original_name,
+            ['Content-Disposition' => 'inline; filename="'.$attachment->original_name.'"']
+        );
+    }
+
+    public function download(Request $request, Service $service, Attachment $attachment)
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+        $attachment = $this->resolveAttachment($service, $attachment);
+
+        return Storage::disk($attachment->disk)->download($attachment->storage_path, $attachment->original_name);
+    }
+
+    public function destroyAttachment(Request $request, Service $service, Attachment $attachment): RedirectResponse
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+        $attachment = $this->resolveAttachment($service, $attachment);
+        $this->attachmentService->delete($attachment);
+
+        return back()->with('status', 'Service attachment removed.');
     }
 
     protected function syncPackages(Service $service, array $packageIds): void
@@ -150,5 +191,14 @@ class ServiceController extends Controller
         })->all();
 
         $service->packages()->sync($syncData);
+    }
+
+    private function resolveAttachment(Service $service, Attachment $attachment): Attachment
+    {
+        return Attachment::query()
+            ->whereKey($attachment->getKey())
+            ->where('attachable_type', Service::class)
+            ->where('attachable_id', $service->getKey())
+            ->firstOrFail();
     }
 }

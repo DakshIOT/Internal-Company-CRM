@@ -8,6 +8,7 @@ use App\Models\FunctionDiscount;
 use App\Models\FunctionEntry;
 use App\Models\FunctionExtraCharge;
 use App\Models\FunctionInstallment;
+use App\Models\Service;
 use App\Services\Files\AttachmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class FunctionAttachmentController extends Controller
     public function preview(Request $request, FunctionEntry $functionEntry, Attachment $attachment)
     {
         $this->authorizeEntry($request, $functionEntry, 'view');
-        $attachment = $this->resolveAttachment($functionEntry, $attachment);
+        $attachment = $this->resolveReadableAttachment($functionEntry, $attachment);
 
         abort_unless($attachment->canPreviewInline(), 404);
 
@@ -36,7 +37,7 @@ class FunctionAttachmentController extends Controller
     public function download(Request $request, FunctionEntry $functionEntry, Attachment $attachment)
     {
         $this->authorizeEntry($request, $functionEntry, 'view');
-        $attachment = $this->resolveAttachment($functionEntry, $attachment);
+        $attachment = $this->resolveReadableAttachment($functionEntry, $attachment);
 
         return Storage::disk($attachment->disk)->download($attachment->storage_path, $attachment->original_name);
     }
@@ -44,7 +45,7 @@ class FunctionAttachmentController extends Controller
     public function destroy(Request $request, FunctionEntry $functionEntry, Attachment $attachment): RedirectResponse
     {
         $this->authorizeEntry($request, $functionEntry, 'update');
-        $attachment = $this->resolveAttachment($functionEntry, $attachment);
+        $attachment = $this->resolveWritableAttachment($functionEntry, $attachment);
 
         $this->attachmentService->delete($attachment);
 
@@ -57,7 +58,52 @@ class FunctionAttachmentController extends Controller
         abort_unless((int) $functionEntry->venue_id === (int) $request->session()->get('selected_venue_id'), 404);
     }
 
-    private function resolveAttachment(FunctionEntry $functionEntry, Attachment $attachment): Attachment
+    private function resolveReadableAttachment(FunctionEntry $functionEntry, Attachment $attachment): Attachment
+    {
+        $entryId = $functionEntry->getKey();
+
+        return Attachment::query()
+            ->whereKey($attachment->getKey())
+            ->where(function ($query) use ($entryId) {
+                $query
+                    ->where(function ($builder) use ($entryId) {
+                        $builder
+                            ->where('attachable_type', FunctionEntry::class)
+                            ->where('attachable_id', $entryId);
+                    })
+                    ->orWhere(function ($builder) use ($entryId) {
+                        $builder
+                            ->where('attachable_type', FunctionExtraCharge::class)
+                            ->whereIn('attachable_id', FunctionExtraCharge::query()->where('function_entry_id', $entryId)->select('id'));
+                    })
+                    ->orWhere(function ($builder) use ($entryId) {
+                        $builder
+                            ->where('attachable_type', FunctionInstallment::class)
+                            ->whereIn('attachable_id', FunctionInstallment::query()->where('function_entry_id', $entryId)->select('id'));
+                    })
+                    ->orWhere(function ($builder) use ($entryId) {
+                        $builder
+                            ->where('attachable_type', FunctionDiscount::class)
+                            ->whereIn('attachable_id', FunctionDiscount::query()->where('function_entry_id', $entryId)->select('id'));
+                    })
+                    ->orWhere(function ($builder) use ($entryId) {
+                        $builder
+                            ->where('attachable_type', Service::class)
+                            ->whereIn('attachable_id', Service::query()
+                                ->whereIn('id', function ($serviceQuery) use ($entryId) {
+                                    $serviceQuery
+                                        ->select('function_service_lines.service_id')
+                                        ->from('function_service_lines')
+                                        ->join('function_packages', 'function_packages.id', '=', 'function_service_lines.function_package_id')
+                                        ->where('function_packages.function_entry_id', $entryId);
+                                })
+                                ->select('id'));
+                    });
+            })
+            ->firstOrFail();
+    }
+
+    private function resolveWritableAttachment(FunctionEntry $functionEntry, Attachment $attachment): Attachment
     {
         $entryId = $functionEntry->getKey();
 

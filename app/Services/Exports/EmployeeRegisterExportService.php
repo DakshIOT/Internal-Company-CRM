@@ -4,7 +4,9 @@ namespace App\Services\Exports;
 
 use App\Models\User;
 use App\Models\Venue;
+use App\Support\Attachments\AttachmentExportFormatter;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 class EmployeeRegisterExportService
@@ -38,6 +40,10 @@ class EmployeeRegisterExportService
                 'Installments Count',
                 'Discounts Count',
                 'Attachments Count',
+                'Attachment Names',
+                'Attachment Download URLs',
+                'Service Attachment Names',
+                'Service Attachment Download URLs',
                 'Function Total',
                 'Paid',
                 'Pending',
@@ -56,6 +62,16 @@ class EmployeeRegisterExportService
                     (int) $entry->installments_count,
                     (int) $entry->discounts_count,
                     (int) $entry->attachments_count,
+                    AttachmentExportFormatter::names($entry->attachments ?? collect()),
+                    AttachmentExportFormatter::urls(
+                        $entry->attachments ?? collect(),
+                        fn ($attachment) => route('employee.functions.attachments.download', ['functionEntry' => $entry, 'attachment' => $attachment])
+                    ),
+                    AttachmentExportFormatter::names($entry->serviceAttachments()),
+                    AttachmentExportFormatter::urls(
+                        $entry->serviceAttachments(),
+                        fn ($attachment) => route('employee.functions.attachments.download', ['functionEntry' => $entry, 'attachment' => $attachment])
+                    ),
                     Money::toDecimal($entry->function_total_minor),
                     Money::toDecimal($entry->paid_total_minor),
                     Money::toDecimal($entry->pending_total_minor),
@@ -93,6 +109,8 @@ class EmployeeRegisterExportService
         array $summary,
         Collection $dateTotals,
         string $moduleLabel,
+        string $downloadRouteName,
+        string $routeKey,
         bool $includeVendors = false,
         ?Collection $vendorTotals = null
     ): array {
@@ -118,8 +136,10 @@ class EmployeeRegisterExportService
                 'Name',
                 'Notes',
                 'Attachments Count',
+                'Attachment Names',
+                'Attachment Download URLs',
                 'Amount',
-            ]], $entries->map(function ($entry) use ($includeVendors, $user, $venue) {
+            ]], $entries->map(function ($entry) use ($downloadRouteName, $includeVendors, $routeKey, $user, $venue) {
                 return [
                     optional($entry->entry_date)->toDateString(),
                     $venue->name,
@@ -129,6 +149,11 @@ class EmployeeRegisterExportService
                     $entry->name,
                     (string) $entry->notes,
                     (int) $entry->attachments_count,
+                    AttachmentExportFormatter::names($entry->attachments ?? collect()),
+                    AttachmentExportFormatter::urls(
+                        $entry->attachments ?? collect(),
+                        fn ($attachment) => route($downloadRouteName, [$routeKey => $entry, 'attachment' => $attachment])
+                    ),
                     Money::toDecimal($entry->amount_minor),
                 ];
             })->all()),
@@ -160,5 +185,66 @@ class EmployeeRegisterExportService
         }
 
         return $sheets;
+    }
+
+    public function adminAmountSheets(
+        User $admin,
+        array $filters,
+        Collection $entries,
+        array $summary,
+        Collection $dateTotals,
+        string $moduleLabel,
+        string $downloadRouteName,
+        string $routeKey,
+    ): array {
+        return [
+            'Summary' => [
+                ['Filter', 'Value'],
+                ['Module', $moduleLabel],
+                ['Created By', $admin->name],
+                ['Created By Role', $admin->roleLabel()],
+                ['Search', $filters['search'] ?? 'None'],
+                ['Entry Date', $filters['entry_date'] ?? 'All'],
+                ['Record Count', $summary['entry_count']],
+                ['Amount', Money::toDecimal($summary['amount_minor'])],
+            ],
+            'Entries' => array_merge([[
+                'Entry Date',
+                'Created By',
+                'Created By Role',
+                'Name',
+                'Notes',
+                'Attachments Count',
+                'Attachment Names',
+                'Attachment Download URLs',
+                'Amount',
+            ]], $entries->map(function (Model $entry) use ($downloadRouteName, $routeKey) {
+                return [
+                    optional($entry->entry_date)->toDateString(),
+                    $entry->user?->name ?? '',
+                    $entry->user?->roleLabel() ?? '',
+                    $entry->name,
+                    (string) $entry->notes,
+                    (int) $entry->attachments_count,
+                    AttachmentExportFormatter::names($entry->attachments ?? collect()),
+                    AttachmentExportFormatter::urls(
+                        $entry->attachments ?? collect(),
+                        fn ($attachment) => route($downloadRouteName, [$routeKey => $entry, 'attachment' => $attachment])
+                    ),
+                    Money::toDecimal($entry->amount_minor),
+                ];
+            })->all()),
+            'Date Totals' => array_merge([[
+                'Entry Date',
+                'Entry Count',
+                'Amount',
+            ]], $dateTotals->map(function (array $row) {
+                return [
+                    $row['entry_date'],
+                    $row['entry_count'],
+                    Money::toDecimal($row['amount_minor']),
+                ];
+            })->all()),
+        ];
     }
 }
