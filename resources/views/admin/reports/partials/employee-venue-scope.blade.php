@@ -1,5 +1,5 @@
 @php
-    $moduleRoute = $moduleRoute ?? route('admin.reports.functions.index');
+    $moduleRoute = $moduleRoute ?? 'admin.reports.functions.index';
     $selectedEmployee = collect($filterOptions['users'] ?? [])->firstWhere('id', $filters->userId);
 @endphp
 
@@ -26,7 +26,7 @@
         @endif
     </div>
 
-    <form method="GET" action="{{ $moduleRoute }}" class="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+    <form method="GET" action="{{ route($moduleRoute) }}" class="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
         <label class="crm-field">
             <span class="crm-field-label">Employee</span>
             <select name="user_id" class="crm-input" required>

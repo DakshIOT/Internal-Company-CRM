@@ -53,6 +53,23 @@ class ReportingTest extends TestCase
             ->assertDontSee('Garden Corporate');
     }
 
+    public function test_employee_scoped_report_links_render_real_routes_instead_of_route_names(): void
+    {
+        [$admin, $venueA, $venueB, $employeeA] = $this->seedReportData();
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.reports.daily-income.index', [
+                'user_id' => $employeeA->id,
+                'venue_id' => $venueA->id,
+            ]));
+
+        $response
+            ->assertOk()
+            ->assertSee('action="'.route('admin.reports.daily-income.index').'"', false)
+            ->assertSee(route('admin.reports.daily-income.index', ['user_id' => $employeeA->id]), false)
+            ->assertDontSee('/admin/reports/admin.reports.daily-income.index', false);
+    }
+
     public function test_dashboard_stays_global_and_reports_prompt_for_employee_before_loading_rows(): void
     {
         [$admin] = $this->seedReportData();
