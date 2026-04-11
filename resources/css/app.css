@@ -22,7 +22,7 @@
             linear-gradient(180deg, #e2e8f0 0%, #f8fafc 34%, #f1f5f9 100%);
         color: var(--crm-ink);
         font-family: var(--crm-sans);
-        overflow-x: hidden;
+        overflow-x: auto;
     }
 
     @media print {
@@ -70,7 +70,7 @@
     }
 
     .crm-panel {
-        @apply rounded-[1.75rem] border border-white/60 bg-white/80 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.38)] backdrop-blur-xl;
+        @apply max-w-full rounded-[1.75rem] border border-white/60 bg-white/80 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.38)] backdrop-blur-xl;
     }
 
     .crm-glass-panel {
@@ -82,7 +82,7 @@
     }
 
     .crm-shell-header {
-        @apply flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between;
+        @apply flex min-w-0 flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between;
     }
 
     .crm-shell-header-copy {
@@ -90,7 +90,7 @@
     }
 
     .crm-shell-header-copy h1 {
-        @apply mt-1 font-display text-[1.65rem] font-semibold leading-tight text-slate-950 sm:text-[2rem];
+        @apply mt-1 break-words font-display text-[1.5rem] font-semibold leading-tight text-slate-950 sm:text-[1.85rem];
     }
 
     .crm-shell-header-copy p:not(.crm-section-title) {
@@ -98,15 +98,15 @@
     }
 
     .crm-shell-header-actions {
-        @apply flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end;
+        @apply flex min-w-0 w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center 2xl:w-auto 2xl:justify-end;
     }
 
     .crm-employee-topbar {
-        @apply grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center;
+        @apply grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center;
     }
 
     .crm-context-switcher {
-        @apply rounded-[1.35rem] border border-slate-200/80 bg-white/90 px-3.5 py-3 shadow-sm;
+        @apply min-w-0 rounded-[1.35rem] border border-slate-200/80 bg-white/90 px-3.5 py-3 shadow-sm;
     }
 
     .crm-context-switcher-form {
@@ -118,7 +118,7 @@
     }
 
     .crm-context-switcher-controls {
-        @apply flex flex-col gap-2 sm:flex-row sm:items-center;
+        @apply flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center;
     }
 
     .crm-identity-card {
@@ -134,7 +134,7 @@
     }
 
     .crm-page-header {
-        @apply flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between;
+        @apply flex min-w-0 flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between;
     }
 
     .crm-page-heading {
@@ -142,7 +142,7 @@
     }
 
     .crm-page-title {
-        @apply mt-1 font-display text-[1.9rem] font-semibold leading-tight text-slate-950 sm:text-[2.2rem];
+        @apply mt-1 break-words font-display text-[1.75rem] font-semibold leading-tight text-slate-950 sm:text-[2.05rem];
     }
 
     .crm-page-description {
@@ -150,7 +150,7 @@
     }
 
     .crm-page-header-actions {
-        @apply flex flex-wrap items-center gap-2 xl:justify-end;
+        @apply flex min-w-0 w-full flex-wrap items-center gap-2 2xl:w-auto 2xl:justify-end;
     }
 
     .crm-page-header-actions .crm-button {
@@ -158,7 +158,7 @@
     }
 
     .crm-button {
-        @apply inline-flex items-center rounded-2xl px-5 py-3 text-sm font-semibold tracking-wide transition duration-200;
+        @apply inline-flex min-w-0 items-center rounded-2xl px-5 py-3 text-sm font-semibold tracking-wide transition duration-200;
     }
 
     .crm-button.is-loading {
@@ -187,7 +187,7 @@
     }
 
     .crm-sidebar-link {
-        @apply flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white;
+        @apply flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white;
     }
 
     .crm-sidebar-link-active {
@@ -219,7 +219,18 @@
     }
 
     .crm-table-wrap {
-        @apply overflow-x-auto rounded-[1.5rem] border border-slate-100 bg-white;
+        @apply max-w-full overflow-x-auto rounded-[1.5rem] border border-slate-100 bg-white;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+    }
+
+    .crm-table-wrap::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .crm-table-wrap::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.55);
+        border-radius: 999px;
     }
 
     .crm-table {
@@ -247,7 +258,7 @@
     }
 
     .crm-tab {
-        @apply inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:border-cyan-300 hover:text-slate-950;
+        @apply inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:border-cyan-300 hover:text-slate-950;
     }
 
     .crm-tab-active {
@@ -303,6 +314,53 @@
 }
 
 @layer utilities {
+    @media (max-width: 1535px) {
+        .crm-shell-header-copy h1 {
+            @apply text-[1.4rem];
+        }
+
+        .crm-page-title {
+            @apply text-[1.6rem];
+        }
+    }
+
+    @media (max-width: 1279px) {
+        .crm-sidebar-link {
+            @apply px-3 py-2.5 text-[0.92rem];
+        }
+
+        .crm-sidebar-link > span:last-child {
+            @apply truncate;
+        }
+
+        .crm-button {
+            @apply px-4 py-2.5 text-[0.83rem];
+        }
+
+        .crm-shell-header-actions .crm-chip,
+        .crm-page-header-actions .crm-chip {
+            @apply max-w-full truncate;
+        }
+
+        .crm-table {
+            @apply text-[0.82rem];
+        }
+
+        .crm-table th {
+            @apply text-[0.64rem];
+        }
+
+        .crm-table td {
+            @apply px-3.5 py-3.5;
+        }
+    }
+
+    @media (max-width: 1024px) {
+        .crm-panel {
+            @apply p-4;
+        }
+    }
+
     @media (max-width: 640px) {
         .crm-panel,
         .crm-kpi,

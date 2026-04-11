@@ -63,7 +63,7 @@
             </form>
         </div>
 
-        <aside class="space-y-6 xl:sticky xl:top-20 xl:self-start">
+        <aside class="space-y-6">
             @include('employee.functions.partials.summary', [
                 'functionEntry' => $functionEntry,
                 'workspaceTotals' => $workspaceTotals,

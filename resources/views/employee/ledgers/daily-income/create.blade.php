@@ -37,7 +37,7 @@
             ])
         </form>
 
-        <aside class="xl:sticky xl:top-24 xl:self-start">
+        <aside>
             @include('ledgers.partials.sidebar-summary', [
                 'entry' => $entry,
                 'workspaceTotals' => ['focus' => ['label' => 'Latest date total', 'entry_date' => null, 'entry_count' => 0, 'amount_minor' => 0], 'grand' => ['entry_count' => 0, 'amount_minor' => 0], 'date_totals' => []],

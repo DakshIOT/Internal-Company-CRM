@@ -32,11 +32,11 @@
                 <article class="crm-kpi"><p class="crm-section-title">Net After Frozen Fund</p><p class="mt-4 font-display text-3xl font-semibold text-slate-950">{{ Money::formatMinor($summary['net_total_after_frozen_fund_minor']) }}</p></article>
             </section>
 
-            <section class="space-y-6 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:gap-6 2xl:space-y-0">
-                <div class="space-y-6">
+            <section class="space-y-6 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:items-start 2xl:gap-6 2xl:space-y-0">
+                <div class="min-w-0 space-y-6">
                     <section class="crm-panel overflow-hidden">
                         <div class="crm-table-wrap rounded-none border-0">
-                            <table class="crm-table min-w-[1280px]">
+                            <table class="crm-table min-w-[1080px] xl:min-w-[1180px] 2xl:min-w-[1280px]">
                                 <thead>
                                     <tr>
                                         <th>Entry Date</th>
@@ -97,7 +97,7 @@
                     </section>
                 </div>
 
-                <div class="grid gap-6 md:grid-cols-2 2xl:grid-cols-1">
+                <div class="grid min-w-0 gap-6 md:grid-cols-2 2xl:grid-cols-1">
                     <article class="crm-panel p-6">
                         <p class="crm-section-title">Report summary</p>
                         <div class="mt-4 grid gap-3 text-sm text-slate-600">

@@ -48,7 +48,7 @@
             </form>
         </div>
 
-        <aside class="xl:sticky xl:top-24 xl:self-start">
+        <aside>
             @include('ledgers.partials.sidebar-summary', ['entry' => $entry, 'workspaceTotals' => $workspaceTotals])
         </aside>
     </div>

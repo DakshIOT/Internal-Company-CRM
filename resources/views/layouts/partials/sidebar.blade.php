@@ -41,8 +41,8 @@
         </div>
     </div>
 
-    <div class="px-5 pt-4 lg:px-6 lg:pt-5">
-        <div class="crm-glass-panel hidden space-y-2 lg:block">
+    <div class="px-4 pt-4 lg:px-4 lg:pt-4 xl:px-6 xl:pt-5">
+        <div class="crm-glass-panel hidden space-y-2 xl:block">
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">Foundation</p>
             <p class="font-display text-lg font-semibold text-white">{{ $user?->isAdmin() ? 'Phase 5 reporting live' : 'Phase 4 employee ledgers' }}</p>
             <p class="text-sm leading-6 text-slate-300">
@@ -53,7 +53,7 @@
         </div>
     </div>
 
-    <nav class="crm-sidebar-scroll mt-5 flex-1 overflow-y-auto px-4 pb-6">
+    <nav class="crm-sidebar-scroll mt-4 flex-1 overflow-y-auto px-3 pb-5 lg:px-3 xl:mt-5 xl:px-4 xl:pb-6">
         <div class="space-y-2">
             @foreach ($navigation as $item)
                 <a
@@ -68,7 +68,7 @@
             @endforeach
         </div>
 
-        <div class="mt-6 rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+        <div class="mt-5 rounded-[1.5rem] border border-white/10 bg-white/5 p-3.5 xl:mt-6 xl:p-4">
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">Approved modules</p>
             <ul class="mt-4 space-y-3 text-sm text-slate-300">
                 @foreach (Role::modulesFor($user->role) as $module)
@@ -81,7 +81,7 @@
         </div>
     </nav>
 
-    <div class="border-t border-white/10 px-6 py-4">
+    <div class="border-t border-white/10 px-4 py-4 xl:px-6">
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="crm-button w-full justify-center border border-white/10 bg-white/5 text-sm font-semibold text-slate-100 hover:bg-white/10">

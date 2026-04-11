@@ -4,7 +4,7 @@
 
 <section class="crm-panel overflow-hidden">
     <div class="crm-table-wrap rounded-none border-0">
-        <table class="crm-table min-w-[1100px]">
+        <table class="crm-table min-w-[920px] xl:min-w-[1020px] 2xl:min-w-[1100px]">
             <thead>
                 <tr>
                     <th>Entry Date</th>

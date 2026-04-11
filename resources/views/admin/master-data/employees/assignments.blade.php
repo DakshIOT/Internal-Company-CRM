@@ -20,8 +20,8 @@
     @include('admin.master-data.partials.nav')
 
     <div class="space-y-6">
-        <section class="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-            <article class="crm-panel p-6">
+        <section class="grid gap-4 2xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+            <article class="crm-panel min-w-0 p-6">
                 <p class="crm-section-title">Employee</p>
                 <h2 class="mt-2 text-2xl font-semibold text-slate-950">{{ $employee->name }}</h2>
                 <p class="mt-2 text-sm text-slate-500">{{ $employee->email }}</p>
@@ -36,9 +36,9 @@
                 </div>
             </article>
 
-            <article class="crm-panel p-6">
+            <article class="crm-panel min-w-0 p-6">
                 <p class="crm-section-title">How this setup works</p>
-                <div class="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-4">
+                <div class="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-2 2xl:grid-cols-4">
                     <div class="rounded-[1.25rem] bg-slate-50 p-4">1. Create or assign a venue directly inside this employee workspace.</div>
                     <div class="rounded-[1.25rem] bg-slate-50 p-4">2. For the selected venue, create or assign packages only for this employee.</div>
                     <div class="rounded-[1.25rem] bg-slate-50 p-4">3. Inside the selected package, create or assign services and keep repeating that for each venue.</div>
@@ -103,8 +103,8 @@
         </section>
 
         @if ($selectedVenue)
-            <section class="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                <article class="space-y-6">
+            <section class="grid gap-6 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <article class="min-w-0 space-y-6">
                     <section class="crm-panel p-6">
                         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div>
@@ -166,7 +166,7 @@
                             </div>
                         @else
                             <div class="mt-5 crm-table-wrap">
-                                <table class="crm-table min-w-[680px]">
+                            <table class="crm-table min-w-[640px] lg:min-w-[680px]">
                                     <thead>
                                         <tr><th>Package</th><th>Services</th><th>Actions</th></tr>
                                     </thead>
@@ -200,7 +200,7 @@
                     </section>
                 </article>
 
-                <article class="space-y-6">
+                <article class="min-w-0 space-y-6">
                     <section class="crm-panel p-6" x-data="{ serviceSearch: '' }">
                         @if ($selectedPackageAssignment)
                             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -233,7 +233,7 @@
                                 </div>
                             @else
                                 <div class="mt-5 crm-table-wrap">
-                                    <table class="crm-table min-w-[860px]">
+                                    <table class="crm-table min-w-[760px] lg:min-w-[860px]">
                                         <thead>
                                             <tr><th>Service</th><th>Mode</th><th>Rate</th><th>Files</th><th>Actions</th></tr>
                                         </thead>
