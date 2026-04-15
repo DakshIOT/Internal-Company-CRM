@@ -144,8 +144,13 @@
 
             .summary-card__value {
                 margin: 10px 0 0;
-                font-size: 24px;
+                font-size: clamp(18px, 2vw, 24px);
                 font-weight: 800;
+                line-height: 1.05;
+                letter-spacing: -0.03em;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                font-variant-numeric: tabular-nums;
             }
 
             .entry-block {
@@ -223,8 +228,50 @@
 
             .entry-metric__value {
                 margin: 8px 0 0;
-                font-size: 22px;
+                font-size: clamp(17px, 1.7vw, 22px);
                 font-weight: 800;
+                line-height: 1.05;
+                letter-spacing: -0.03em;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .package-cell {
+                display: flex;
+                min-height: 100%;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .package-cell__total {
+                margin-top: 18px;
+                text-align: right;
+            }
+
+            .package-cell__total-label {
+                color: var(--muted);
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+            }
+
+            .package-cell__total-value {
+                margin-top: 4px;
+                font-size: clamp(14px, 1.35vw, 16px);
+                font-weight: 800;
+                line-height: 1.05;
+                letter-spacing: -0.02em;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .table-number {
+                text-align: right;
+                white-space: nowrap;
+                font-variant-numeric: tabular-nums;
             }
 
             .table-section {
@@ -533,14 +580,24 @@
                             </thead>
                             <tbody>
                                 @forelse ($entry->packages as $package)
-                                    @php $serviceLineCount = max($package->serviceLines->count(), 1); @endphp
-                                    @forelse ($package->serviceLines as $lineIndex => $serviceLine)
+                                    @php
+                                        $selectedServiceLines = $package->serviceLines->where('is_selected', true)->values();
+                                        $serviceLineCount = max($selectedServiceLines->count(), 1);
+                                    @endphp
+                                    @forelse ($selectedServiceLines as $lineIndex => $serviceLine)
                                         <tr>
                                             @if ($lineIndex === 0)
                                                 <td rowspan="{{ $serviceLineCount }}">
-                                                    <div class="cell-title">{{ $package->name_snapshot }}</div>
-                                                    <div class="cell-muted">{{ $package->code_snapshot }}</div>
-                                                    <div class="cell-title" style="margin-top: 8px;">{{ Money::formatMinor($package->total_minor) }}</div>
+                                                    <div class="package-cell">
+                                                        <div>
+                                                            <div class="cell-title">{{ $package->name_snapshot }}</div>
+                                                            <div class="cell-muted">{{ $package->code_snapshot }}</div>
+                                                        </div>
+                                                        <div class="package-cell__total">
+                                                            <div class="package-cell__total-label">Package total</div>
+                                                            <div class="package-cell__total-value">{{ Money::formatMinor($package->total_minor) }}</div>
+                                                        </div>
+                                                    </div>
                                                 </td>
                                             @endif
                                             <td>
@@ -561,15 +618,15 @@
                                                     </div>
                                                 @endif
                                             </td>
-                                            <td>{{ $serviceLine->usesPersonsField() ? $serviceLine->persons : 'No persons' }}</td>
-                                            <td>{{ Money::formatMinor($serviceLine->rate_minor) }}</td>
-                                            <td>{{ Money::formatMinor($serviceLine->extra_charge_minor) }}</td>
-                                            <td>{{ Money::formatMinor($serviceLine->line_total_minor) }}</td>
+                                            <td class="table-number">{{ $serviceLine->usesPersonsField() ? $serviceLine->persons : 'No persons' }}</td>
+                                            <td class="table-number">{{ Money::formatMinor($serviceLine->rate_minor) }}</td>
+                                            <td class="table-number">{{ Money::formatMinor($serviceLine->extra_charge_minor) }}</td>
+                                            <td class="table-number">{{ Money::formatMinor($serviceLine->line_total_minor) }}</td>
                                         </tr>
                                     @empty
                                         <tr>
                                             <td><span class="cell-title">{{ $package->name_snapshot }}</span></td>
-                                            <td colspan="5">No service lines recorded.</td>
+                                            <td colspan="5">No selected service lines recorded.</td>
                                         </tr>
                                     @endforelse
                                 @empty

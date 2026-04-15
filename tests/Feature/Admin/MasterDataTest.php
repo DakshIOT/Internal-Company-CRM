@@ -560,6 +560,56 @@ class MasterDataTest extends TestCase
         );
     }
 
+    public function test_admin_can_delete_employee_without_deleting_master_data_records(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeB()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create();
+        $service = Service::factory()->create();
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.master-data.employees.destroy', $employee))
+            ->assertRedirect(route('admin.master-data.employees.index'));
+
+        $this->assertDatabaseMissing('users', ['id' => $employee->id]);
+        $this->assertDatabaseMissing('user_venue', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+        ]);
+        $this->assertDatabaseMissing('package_assignments', [
+            'user_id' => $employee->id,
+            'package_id' => $package->id,
+        ]);
+        $this->assertDatabaseMissing('package_service_assignments', [
+            'user_id' => $employee->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseMissing('service_assignments', [
+            'user_id' => $employee->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('venues', ['id' => $venue->id]);
+        $this->assertDatabaseHas('packages', ['id' => $package->id]);
+        $this->assertDatabaseHas('services', ['id' => $service->id]);
+    }
+
     public function test_editing_employee_account_does_not_remove_existing_setup_when_venue_fields_are_absent(): void
     {
         $admin = User::factory()->admin()->create();

@@ -176,8 +176,13 @@
 
             .summary-card__value {
                 margin-top: 0.55rem;
-                font-size: 1.5rem;
+                font-size: clamp(1.1rem, 1.4vw, 1.5rem);
                 font-weight: 700;
+                line-height: 1.05;
+                letter-spacing: -0.03em;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                font-variant-numeric: tabular-nums;
             }
 
             .print-section {

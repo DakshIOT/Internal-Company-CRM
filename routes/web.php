@@ -84,7 +84,7 @@ Route::middleware(['auth', 'role:admin'])
                 Route::resource('venues', VenueController::class)->except('show');
                 Route::resource('employees', EmployeeController::class)
                     ->parameters(['employees' => 'employee'])
-                    ->except(['show', 'destroy']);
+                    ->except('show');
                 Route::prefix('/employees/{employee}/assignments')
                     ->name('employees.assignments.')
                     ->group(function () {

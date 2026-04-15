@@ -650,11 +650,15 @@ class FunctionEntryTest extends TestCase
         $this->assignEmployeeToVenue($employee, $venue, 12000);
 
         $service = Service::factory()->create(['name' => 'Photography']);
+        $hiddenService = Service::factory()->create(['name' => 'Hidden Catering']);
         $package = Package::factory()->create([
             'name' => 'Wedding Prime',
             'code' => 'WED-PRIME',
         ]);
-        $package->services()->attach($service->id, ['sort_order' => 1]);
+        $package->services()->attach([
+            $service->id => ['sort_order' => 1],
+            $hiddenService->id => ['sort_order' => 2],
+        ]);
 
         $entry = FunctionEntry::query()->create([
             'user_id' => $employee->id,
@@ -690,6 +694,18 @@ class FunctionEntryTest extends TestCase
             'extra_charge_minor' => 0,
             'notes' => 'Lead crew',
             'line_total_minor' => 24000,
+        ]);
+        $functionPackage->serviceLines()->create([
+            'service_id' => $hiddenService->id,
+            'sort_order' => 2,
+            'is_selected' => false,
+            'item_name_snapshot' => 'Hidden Catering',
+            'rate_minor' => 5000,
+            'person_input_mode' => 'none',
+            'persons' => 0,
+            'extra_charge_minor' => 0,
+            'notes' => 'Should stay hidden in print',
+            'line_total_minor' => 0,
         ]);
         $serviceAttachment = $service->attachments()->create([
             'uploaded_by' => $employee->id,
@@ -764,6 +780,7 @@ class FunctionEntryTest extends TestCase
             ->assertSee('March Wedding')
             ->assertSee('Wedding Prime')
             ->assertSee('Photography')
+            ->assertDontSee('Hidden Catering')
             ->assertSee('Flowers')
             ->assertSee('Advance')
             ->assertSee('Promo')
@@ -776,6 +793,70 @@ class FunctionEntryTest extends TestCase
             ->assertSee(route('employee.functions.attachments.download', [$entry, $serviceAttachment]), false)
             ->assertSee(route('employee.functions.attachments.download', [$entry, $baseAttachment]), false)
             ->assertSee(route('employee.functions.attachments.download', [$entry, $extraAttachment]), false);
+    }
+
+    public function test_existing_function_package_picks_up_newly_assigned_package_services_in_edit_view(): void
+    {
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $serviceA = Service::factory()->create(['name' => 'Stage Lights']);
+        $serviceB = Service::factory()->create(['name' => 'Drone Coverage']);
+        $package = Package::factory()->create(['name' => 'Growth Package']);
+        $package->services()->attach([
+            $serviceA->id => ['sort_order' => 1],
+            $serviceB->id => ['sort_order' => 2],
+        ]);
+
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $serviceA->id,
+        ]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $serviceA->id,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.store'), [
+                'entry_date' => '2026-04-10',
+                'name' => 'Service Sync Test',
+            ])->assertRedirect();
+
+        $functionEntry = FunctionEntry::firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.packages.store', $functionEntry), [
+                'package_id' => $package->id,
+            ])->assertRedirect();
+
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $serviceB->id,
+        ]);
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $serviceB->id,
+        ]);
+
+        $response = $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.edit', $functionEntry));
+
+        $response->assertOk()->assertSee('Drone Coverage');
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+        $this->assertCount(2, $functionPackage->serviceLines);
+        $this->assertNotNull($functionPackage->serviceLines->firstWhere('service_id', $serviceB->id));
     }
 
     public function test_employee_can_preview_and_download_service_attachment_linked_through_function_package(): void

@@ -139,6 +139,19 @@ class EmployeeController extends Controller
             ->with('status', 'User account updated successfully.');
     }
 
+    public function destroy(User $employee): RedirectResponse
+    {
+        abort_if($employee->isAdmin(), 404);
+
+        DB::transaction(function () use ($employee) {
+            $employee->delete();
+        });
+
+        return redirect()
+            ->route('admin.master-data.employees.index')
+            ->with('status', 'Employee deleted successfully.');
+    }
+
     private function syncVenues(User $employee, array $venueIds, array $frozenFunds): void
     {
         if ($employee->isAdmin()) {

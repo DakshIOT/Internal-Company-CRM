@@ -10,6 +10,7 @@ use App\Models\FunctionPackage;
 use App\Models\Package;
 use App\Models\PackageServiceAssignment;
 use App\Models\Service;
+use App\Services\Functions\FunctionPackageAvailabilitySyncService;
 use App\Services\Functions\FunctionEntryTotalsService;
 use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
@@ -19,7 +20,10 @@ use Illuminate\Validation\ValidationException;
 
 class FunctionPackageController extends Controller
 {
-    public function __construct(private FunctionEntryTotalsService $totalsService)
+    public function __construct(
+        private FunctionEntryTotalsService $totalsService,
+        private FunctionPackageAvailabilitySyncService $availabilitySyncService,
+    )
     {
     }
 
@@ -171,7 +175,10 @@ class FunctionPackageController extends Controller
     {
         abort_unless((int) $functionPackage->function_entry_id === (int) $functionEntry->id, 404);
 
-        return $functionPackage->loadMissing('serviceLines');
+        $functionPackage->loadMissing(['package.services', 'serviceLines']);
+        $this->availabilitySyncService->syncFunctionPackage($functionPackage, $functionEntry->user, (int) $functionEntry->venue_id);
+
+        return $functionPackage->fresh(['serviceLines.service.attachments']);
     }
 
     private function backToActionCenter(FunctionEntry $functionEntry, string $tab, string $status): RedirectResponse

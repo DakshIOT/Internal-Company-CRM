@@ -202,6 +202,28 @@
         @apply crm-panel p-5;
     }
 
+    .crm-panel p.text-3xl.font-semibold,
+    .crm-panel div.text-3xl.font-semibold,
+    .crm-panel span.text-3xl.font-semibold {
+        font-size: clamp(1.45rem, 1.05rem + 1.2vw, 2.25rem);
+        line-height: 1.05;
+        letter-spacing: -0.035em;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .crm-panel p.text-2xl.font-semibold,
+    .crm-panel div.text-2xl.font-semibold,
+    .crm-panel span.text-2xl.font-semibold {
+        font-size: clamp(1.2rem, 0.95rem + 0.7vw, 1.5rem);
+        line-height: 1.1;
+        letter-spacing: -0.025em;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        font-variant-numeric: tabular-nums;
+    }
+
     .crm-section-title {
         @apply text-xs font-semibold uppercase tracking-[0.22em] text-slate-500;
     }

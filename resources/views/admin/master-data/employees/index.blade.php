@@ -65,6 +65,13 @@
                                         <a href="{{ route('admin.master-data.employees.edit', $employee) }}" class="crm-button crm-button-secondary">Edit</a>
                                         @if ($employee->isEmployee())
                                             <a href="{{ route('admin.master-data.employees.assignments.edit', $employee) }}" class="crm-button crm-button-secondary">Setup</a>
+                                            <form method="POST" action="{{ route('admin.master-data.employees.destroy', $employee) }}" onsubmit="return confirm('Delete this employee account and its employee records? Venues, packages, and services will stay intact.');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="crm-button border border-rose-200 bg-rose-50 text-rose-600 hover:border-rose-300">
+                                                    Delete
+                                                </button>
+                                            </form>
                                         @endif
                                     </div>
                                 </td>

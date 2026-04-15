@@ -10,6 +10,7 @@ use App\Models\Package;
 use App\Models\PrintSetting;
 use App\Services\Exports\EmployeeRegisterExportService;
 use App\Services\Files\AttachmentService;
+use App\Services\Functions\FunctionPackageAvailabilitySyncService;
 use App\Services\Functions\FunctionEntryTotalsService;
 use App\Services\Functions\FunctionEntryWorkspaceTotalsService;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,6 +29,7 @@ class FunctionEntryController extends Controller
         private FunctionEntryWorkspaceTotalsService $workspaceTotalsService,
         private AttachmentService $attachmentService,
         private EmployeeRegisterExportService $exportService,
+        private FunctionPackageAvailabilitySyncService $availabilitySyncService,
     ) {
     }
 
@@ -125,6 +127,11 @@ class FunctionEntryController extends Controller
             ->orderBy('id')
             ->get();
 
+        $entries->each(fn (FunctionEntry $entry) => $this->availabilitySyncService->syncEntry($entry, $user));
+        $entries->load([
+            'packages.serviceLines.service.attachments',
+        ]);
+
         abort_if($entries->isEmpty(), 404);
 
         $dayTotals = [
@@ -207,6 +214,10 @@ class FunctionEntryController extends Controller
 
         $user = $request->user();
         $venueId = $this->selectedVenueId($request);
+        $this->availabilitySyncService->syncEntry($functionEntry, $user);
+        $functionEntry->load([
+            'packages.serviceLines.service.attachments',
+        ]);
         $assignedPackageIds = $user->packageAssignments()
             ->where('venue_id', $venueId)
             ->pluck('package_id');
