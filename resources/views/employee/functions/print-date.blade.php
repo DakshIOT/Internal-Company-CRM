@@ -592,6 +592,9 @@
                                                         <div>
                                                             <div class="cell-title">{{ $package->name_snapshot }}</div>
                                                             <div class="cell-muted">{{ $package->code_snapshot }}</div>
+                                                            <div class="cell-muted">
+                                                                {{ $package->package?->description ?: 'No package notes' }}
+                                                            </div>
                                                         </div>
                                                         <div class="package-cell__total">
                                                             <div class="package-cell__total-label">Package total</div>
@@ -602,7 +605,12 @@
                                             @endif
                                             <td>
                                                 <div class="cell-title">{{ $serviceLine->item_name_snapshot }}</div>
-                                                <div class="cell-muted">{{ $serviceLine->notes ?: 'No notes' }}</div>
+                                                <div class="cell-muted">
+                                                    Service notes: {{ $serviceLine->service?->notes ?: 'No service notes' }}
+                                                </div>
+                                                <div class="cell-muted">
+                                                    Entry notes: {{ $serviceLine->notes ?: 'No entry notes' }}
+                                                </div>
                                                 @if ($serviceLine->service?->attachments?->isNotEmpty())
                                                     <div class="link-list" style="margin-top: 8px;">
                                                         @foreach ($serviceLine->service->attachments as $attachment)

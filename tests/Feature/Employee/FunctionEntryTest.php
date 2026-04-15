@@ -407,6 +407,95 @@ class FunctionEntryTest extends TestCase
         $this->assertSame($serviceA->id, (int) $functionPackage->serviceLines->first()->service_id);
     }
 
+    public function test_deactivated_services_do_not_show_up_in_new_or_synced_function_package_rows(): void
+    {
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $activeService = Service::factory()->create([
+            'name' => 'Active Photo',
+            'is_active' => true,
+        ]);
+        $inactiveService = Service::factory()->create([
+            'name' => 'Inactive Drone',
+            'is_active' => false,
+        ]);
+        $package = Package::factory()->create(['name' => 'Filtered Package']);
+        $package->services()->attach([
+            $activeService->id => ['sort_order' => 1],
+            $inactiveService->id => ['sort_order' => 2],
+        ]);
+
+        $employee->serviceAssignments()->createMany([
+            ['venue_id' => $venue->id, 'service_id' => $activeService->id],
+            ['venue_id' => $venue->id, 'service_id' => $inactiveService->id],
+        ]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->createMany([
+            ['venue_id' => $venue->id, 'package_id' => $package->id, 'service_id' => $activeService->id],
+            ['venue_id' => $venue->id, 'package_id' => $package->id, 'service_id' => $inactiveService->id],
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.store'), [
+                'entry_date' => '2026-04-15',
+                'name' => 'Inactive Service Filter',
+            ])->assertRedirect();
+
+        $functionEntry = FunctionEntry::firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.packages.store', $functionEntry), [
+                'package_id' => $package->id,
+            ])->assertRedirect();
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+        $this->assertCount(1, $functionPackage->serviceLines);
+        $this->assertNotNull($functionPackage->serviceLines->firstWhere('service_id', $activeService->id));
+        $this->assertNull($functionPackage->serviceLines->firstWhere('service_id', $inactiveService->id));
+
+        $reactivatedService = Service::factory()->create([
+            'name' => 'Later Active Add',
+            'is_active' => true,
+        ]);
+        $deactivatedLaterService = Service::factory()->create([
+            'name' => 'Later Inactive Add',
+            'is_active' => false,
+        ]);
+
+        $package->services()->attach([
+            $reactivatedService->id => ['sort_order' => 3],
+            $deactivatedLaterService->id => ['sort_order' => 4],
+        ]);
+
+        $employee->serviceAssignments()->createMany([
+            ['venue_id' => $venue->id, 'service_id' => $reactivatedService->id],
+            ['venue_id' => $venue->id, 'service_id' => $deactivatedLaterService->id],
+        ]);
+        $employee->packageServiceAssignments()->createMany([
+            ['venue_id' => $venue->id, 'package_id' => $package->id, 'service_id' => $reactivatedService->id],
+            ['venue_id' => $venue->id, 'package_id' => $package->id, 'service_id' => $deactivatedLaterService->id],
+        ]);
+
+        $response = $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.edit', $functionEntry));
+
+        $response->assertOk()
+            ->assertSee('Later Active Add')
+            ->assertDontSee('Later Inactive Add');
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+        $this->assertNotNull($functionPackage->serviceLines->firstWhere('service_id', $reactivatedService->id));
+        $this->assertNull($functionPackage->serviceLines->firstWhere('service_id', $deactivatedLaterService->id));
+    }
+
     public function test_frozen_fund_is_not_applied_for_employee_b(): void
     {
         $employee = User::factory()->employeeB()->create();
@@ -650,10 +739,12 @@ class FunctionEntryTest extends TestCase
         $this->assignEmployeeToVenue($employee, $venue, 12000);
 
         $service = Service::factory()->create(['name' => 'Photography']);
+        $service->update(['notes' => 'Bring backup camera and flash kit.']);
         $hiddenService = Service::factory()->create(['name' => 'Hidden Catering']);
         $package = Package::factory()->create([
             'name' => 'Wedding Prime',
             'code' => 'WED-PRIME',
+            'description' => 'Package note for wedding prime.',
         ]);
         $package->services()->attach([
             $service->id => ['sort_order' => 1],
@@ -779,7 +870,10 @@ class FunctionEntryTest extends TestCase
             ->assertSee('Date Print Sheet')
             ->assertSee('March Wedding')
             ->assertSee('Wedding Prime')
+            ->assertSee('Package note for wedding prime.')
             ->assertSee('Photography')
+            ->assertSee('Bring backup camera and flash kit.')
+            ->assertSee('Entry notes: Lead crew')
             ->assertDontSee('Hidden Catering')
             ->assertSee('Flowers')
             ->assertSee('Advance')

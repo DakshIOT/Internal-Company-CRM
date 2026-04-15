@@ -108,6 +108,10 @@ Route::middleware(['auth', 'role:admin'])
                     ->name('services.attachments.download');
                 Route::delete('services/{service}/attachments/{attachment}', [ServiceController::class, 'destroyAttachment'])
                     ->name('services.attachments.destroy');
+                Route::patch('services/{service}/toggle-active', [ServiceController::class, 'toggleActive'])
+                    ->name('services.toggle-active');
+                Route::patch('packages/{package}/toggle-active', [PackageController::class, 'toggleActive'])
+                    ->name('packages.toggle-active');
                 Route::resource('packages', PackageController::class)->except('show');
                 Route::get('/function-print-settings', [FunctionPrintSettingController::class, 'edit'])
                     ->name('function-print-settings.edit');

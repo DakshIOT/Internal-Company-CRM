@@ -75,11 +75,11 @@
                                 <td>
                                     <div class="flex flex-wrap gap-2">
                                         <a href="{{ route('admin.master-data.packages.edit', $package) }}" class="crm-button crm-button-secondary">Edit mapping</a>
-                                        <form method="POST" action="{{ route('admin.master-data.packages.destroy', $package) }}" onsubmit="return confirm('Delete this package?');">
+                                        <form method="POST" action="{{ route('admin.master-data.packages.toggle-active', $package) }}" onsubmit="return confirm('{{ $package->is_active ? 'Deactivate' : 'Activate' }} this package?');">
                                             @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="crm-button border border-rose-200 bg-rose-50 text-rose-600 hover:border-rose-300">
-                                                Delete
+                                            @method('PATCH')
+                                            <button type="submit" class="crm-button {{ $package->is_active ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300' : 'crm-button-secondary' }}">
+                                                {{ $package->is_active ? 'Deactivate' : 'Activate' }}
                                             </button>
                                         </form>
                                     </div>

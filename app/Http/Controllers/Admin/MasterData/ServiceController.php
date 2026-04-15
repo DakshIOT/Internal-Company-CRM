@@ -129,6 +129,18 @@ class ServiceController extends Controller
 
     public function destroy(Service $service): RedirectResponse
     {
+        if ($service->functionServiceLines()->exists()) {
+            return redirect()
+                ->route('admin.master-data.services.index')
+                ->with('error', 'This service is already used in Function Entry records and cannot be deleted.');
+        }
+
+        if ($service->assignments()->exists() || $service->packages()->exists()) {
+            return redirect()
+                ->route('admin.master-data.services.index')
+                ->with('error', 'This service is still assigned in packages or employee setup records. Remove those mappings first.');
+        }
+
         $service->load('attachments');
         $service->attachments->each(fn (Attachment $attachment) => $this->attachmentService->delete($attachment));
         $service->delete();
@@ -136,6 +148,19 @@ class ServiceController extends Controller
         return redirect()
             ->route('admin.master-data.services.index')
             ->with('status', 'Service deleted successfully.');
+    }
+
+    public function toggleActive(Service $service): RedirectResponse
+    {
+        $service->update([
+            'is_active' => ! $service->is_active,
+        ]);
+
+        return redirect()
+            ->route('admin.master-data.services.index')
+            ->with('status', $service->is_active
+                ? 'Service activated successfully.'
+                : 'Service deactivated successfully.');
     }
 
     public function preview(Request $request, Service $service, Attachment $attachment)

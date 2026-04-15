@@ -98,11 +98,11 @@
                                 <td>
                                     <div class="flex flex-wrap gap-2">
                                         <a href="{{ route('admin.master-data.services.edit', $service) }}" class="crm-button crm-button-secondary">Edit</a>
-                                        <form method="POST" action="{{ route('admin.master-data.services.destroy', $service) }}" onsubmit="return confirm('Delete this service?');">
+                                        <form method="POST" action="{{ route('admin.master-data.services.toggle-active', $service) }}" onsubmit="return confirm('{{ $service->is_active ? 'Deactivate' : 'Activate' }} this service?');">
                                             @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="crm-button border border-rose-200 bg-rose-50 text-rose-600 hover:border-rose-300">
-                                                Delete
+                                            @method('PATCH')
+                                            <button type="submit" class="crm-button {{ $service->is_active ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300' : 'border border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-300' }}">
+                                                {{ $service->is_active ? 'Deactivate' : 'Activate' }}
                                             </button>
                                         </form>
                                     </div>

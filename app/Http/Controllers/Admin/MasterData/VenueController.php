@@ -111,6 +111,18 @@ class VenueController extends Controller
 
     public function destroy(Venue $venue): RedirectResponse
     {
+        if (
+            $venue->users()->exists()
+            || $venue->functionEntries()->exists()
+            || $venue->dailyIncomeEntries()->exists()
+            || $venue->dailyBillingEntries()->exists()
+            || $venue->vendorEntries()->exists()
+        ) {
+            return redirect()
+                ->route('admin.master-data.venues.index')
+                ->with('error', 'This venue is still assigned or has recorded activity. Remove the links or history dependency before deleting it.');
+        }
+
         $venue->delete();
 
         return redirect()

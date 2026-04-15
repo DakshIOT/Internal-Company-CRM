@@ -1,4 +1,11 @@
-@php use App\Models\Service; use App\Support\Money; @endphp
+@php
+    use App\Models\Service;
+    use App\Support\Money;
+
+    $inactiveAssignedPackages = $packageAssignments->filter(fn ($assignment) => ! ($assignment->package?->is_active ?? false));
+    $selectedPackageIsInactive = $selectedPackageAssignment && ! ($selectedPackageAssignment->package?->is_active ?? false);
+    $inactiveAssignedServices = $serviceAssignments->filter(fn ($assignment) => ! ($assignment->service?->is_active ?? false));
+@endphp
 
 <x-app-layout>
     <x-slot name="header">
@@ -150,6 +157,13 @@
                             </div>
                         </div>
 
+                        @if ($inactiveAssignedPackages->isNotEmpty())
+                            <div class="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                                {{ $inactiveAssignedPackages->count() === 1 ? 'One assigned package is inactive.' : $inactiveAssignedPackages->count().' assigned packages are inactive.' }}
+                                Inactive packages stay visible here only so admin can review or remove them from this employee venue. They will not appear in active package assignment lists or employee package selection.
+                            </div>
+                        @endif
+
                         @if ($packageAssignments->count() > 5)
                             <div class="mt-5 max-w-md">
                                 <x-input-label for="package_search" value="Search packages in this venue" />
@@ -175,7 +189,12 @@
                                             @php($packageNeedle = strtolower(trim(($packageAssignment->package?->name ?? '').' '.($packageAssignment->package?->code ?? ''))))
                                             <tr x-show="!packageSearch || @js($packageNeedle).includes(packageSearch.toLowerCase().trim())">
                                                 <td>
-                                                    <div class="font-semibold text-slate-950">{{ $packageAssignment->package?->name }}</div>
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <div class="font-semibold text-slate-950">{{ $packageAssignment->package?->name }}</div>
+                                                        @if (! ($packageAssignment->package?->is_active ?? false))
+                                                            <span class="crm-chip bg-amber-50 text-amber-700">Inactive package</span>
+                                                        @endif
+                                                    </div>
                                                     <div class="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{{ $packageAssignment->package?->code ?: 'No code' }}</div>
                                                 </td>
                                                 <td><span class="crm-chip bg-cyan-50 text-cyan-700">{{ (int) ($serviceCountsByPackage[$packageAssignment->package_id] ?? 0) }} services</span></td>
@@ -206,16 +225,34 @@
                             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                 <div>
                                     <p class="crm-section-title">Services in package</p>
-                                    <h2 class="mt-2 text-2xl font-semibold text-slate-950">{{ $selectedPackageAssignment->package?->name }}</h2>
+                                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                                        <h2 class="text-2xl font-semibold text-slate-950">{{ $selectedPackageAssignment->package?->name }}</h2>
+                                        @if ($selectedPackageIsInactive)
+                                            <span class="crm-chip bg-amber-50 text-amber-700">Inactive package</span>
+                                        @endif
+                                    </div>
                                     <p class="mt-2 text-sm leading-6 text-slate-600">
                                         Create a new service for this package or attach one of the existing services. This service mapping is specific to the selected employee, venue, and package.
                                     </p>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
-                                    <button type="button" class="crm-button crm-button-primary justify-center" x-data x-on:click="$dispatch('open-modal', 'create-service-modal')">Create service</button>
-                                    <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-service-modal')" @disabled($availableServices->isEmpty())>Assign existing service</button>
+                                    <button type="button" class="crm-button crm-button-primary justify-center disabled:cursor-not-allowed disabled:opacity-50" x-data x-on:click="$dispatch('open-modal', 'create-service-modal')" @disabled($selectedPackageIsInactive)>Create service</button>
+                                    <button type="button" class="crm-button crm-button-secondary justify-center disabled:cursor-not-allowed disabled:opacity-50" x-data x-on:click="$dispatch('open-modal', 'assign-service-modal')" @disabled($availableServices->isEmpty() || $selectedPackageIsInactive)>Assign existing service</button>
                                 </div>
                             </div>
+
+                            @if ($selectedPackageIsInactive)
+                                <div class="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                                    This package is inactive. It remains visible only because it is still assigned to this employee venue. Remove the package assignment if it should no longer be available.
+                                </div>
+                            @endif
+
+                            @if ($inactiveAssignedServices->isNotEmpty())
+                                <div class="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                                    {{ $inactiveAssignedServices->count() === 1 ? 'One assigned service is inactive.' : $inactiveAssignedServices->count().' assigned services are inactive.' }}
+                                    Inactive services stay visible here only so admin can review or remove them. They will not appear in active service assignment lists or future employee package rows.
+                                </div>
+                            @endif
 
                             @if ($serviceAssignments->count() > 6)
                                 <div class="mt-5 max-w-md">
@@ -242,7 +279,12 @@
                                                 @php($serviceNeedle = strtolower(trim(($serviceAssignment->service?->name ?? '').' '.($serviceAssignment->service?->code ?? '').' '.($serviceAssignment->service?->personModeLabel() ?? ''))))
                                                 <tr x-show="!serviceSearch || @js($serviceNeedle).includes(serviceSearch.toLowerCase().trim())">
                                                     <td>
-                                                        <div class="font-semibold text-slate-950">{{ $serviceAssignment->service?->name }}</div>
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            <div class="font-semibold text-slate-950">{{ $serviceAssignment->service?->name }}</div>
+                                                            @if (! ($serviceAssignment->service?->is_active ?? false))
+                                                                <span class="crm-chip bg-amber-50 text-amber-700">Inactive service</span>
+                                                            @endif
+                                                        </div>
                                                         <div class="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{{ $serviceAssignment->service?->code ?: 'No code' }}</div>
                                                     </td>
                                                     <td>{{ $serviceAssignment->service?->personModeLabel() }}</td>

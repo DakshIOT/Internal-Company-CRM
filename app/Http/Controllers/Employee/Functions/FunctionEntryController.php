@@ -118,6 +118,7 @@ class FunctionEntryController extends Controller
             ->with([
                 'venue',
                 'attachments',
+                'packages.package',
                 'packages.serviceLines.service.attachments',
                 'extraCharges.attachments',
                 'installments.attachments',
@@ -129,6 +130,7 @@ class FunctionEntryController extends Controller
 
         $entries->each(fn (FunctionEntry $entry) => $this->availabilitySyncService->syncEntry($entry, $user));
         $entries->load([
+            'packages.package',
             'packages.serviceLines.service.attachments',
         ]);
 

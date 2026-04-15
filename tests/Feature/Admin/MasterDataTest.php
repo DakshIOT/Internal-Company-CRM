@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\FunctionEntry;
+use App\Models\FunctionPackage;
+use App\Models\FunctionServiceLine;
 use App\Models\Package;
 use App\Models\PackageServiceAssignment;
 use App\Models\PrintSetting;
@@ -411,6 +414,34 @@ class MasterDataTest extends TestCase
             ->assertSee('Assign existing service');
     }
 
+    public function test_inactive_assigned_package_is_marked_and_warned_in_employee_setup_workspace(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create(['name' => 'Garden Court']);
+        $package = Package::factory()->create([
+            'name' => 'Legacy Package',
+            'is_active' => false,
+        ]);
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+                'package' => $package->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Inactive package')
+            ->assertSee('It remains visible only because it is still assigned to this employee venue.')
+            ->assertSee('They will not appear in active package assignment lists or employee package selection.');
+    }
+
     public function test_selected_packages_derive_service_access_in_employee_setup_workspace(): void
     {
         $admin = User::factory()->admin()->create();
@@ -608,6 +639,247 @@ class MasterDataTest extends TestCase
         $this->assertDatabaseHas('venues', ['id' => $venue->id]);
         $this->assertDatabaseHas('packages', ['id' => $package->id]);
         $this->assertDatabaseHas('services', ['id' => $service->id]);
+    }
+
+    public function test_admin_can_deactivate_package_and_it_disappears_from_employee_setup_assignment_lists(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create([
+            'name' => 'Deactivate Me Package',
+            'is_active' => true,
+        ]);
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.master-data.packages.toggle-active', $package))
+            ->assertRedirect(route('admin.master-data.packages.index'))
+            ->assertSessionHas('status', 'Package deactivated successfully.');
+
+        $this->assertDatabaseHas('packages', [
+            'id' => $package->id,
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+            ]))
+            ->assertOk()
+            ->assertDontSee('Deactivate Me Package');
+    }
+
+    public function test_admin_can_deactivate_service_and_it_disappears_from_employee_setup_assignment_lists(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create();
+        $service = Service::factory()->create([
+            'name' => 'Deactivate Me Service',
+            'is_active' => true,
+        ]);
+
+        $package->services()->attach($service->id, ['sort_order' => 1]);
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.master-data.services.toggle-active', $service))
+            ->assertRedirect(route('admin.master-data.services.index'))
+            ->assertSessionHas('status', 'Service deactivated successfully.');
+
+        $this->assertDatabaseHas('services', [
+            'id' => $service->id,
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+                'package' => $package->id,
+            ]))
+            ->assertOk()
+            ->assertDontSee('Deactivate Me Service');
+    }
+
+    public function test_package_index_uses_activate_and_deactivate_actions_instead_of_delete(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $activePackage = Package::factory()->create([
+            'name' => 'Active Package',
+            'is_active' => true,
+        ]);
+        $inactivePackage = Package::factory()->create([
+            'name' => 'Inactive Package',
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.packages.index'))
+            ->assertOk()
+            ->assertSee('Active Package')
+            ->assertSee('Inactive Package')
+            ->assertSee('Deactivate')
+            ->assertSee('Activate')
+            ->assertDontSee('Delete this package?', false)
+            ->assertDontSee('>Delete<', false);
+    }
+
+    public function test_service_index_uses_activate_and_deactivate_actions_instead_of_delete(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $activeService = Service::factory()->create([
+            'name' => 'Active Service',
+            'is_active' => true,
+        ]);
+        $inactiveService = Service::factory()->create([
+            'name' => 'Inactive Service',
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.services.index'))
+            ->assertOk()
+            ->assertSee('Active Service')
+            ->assertSee('Inactive Service')
+            ->assertSee('Deactivate')
+            ->assertSee('Activate')
+            ->assertDontSee('Delete this service?', false)
+            ->assertDontSee('>Delete<', false);
+    }
+
+    public function test_admin_cannot_delete_package_that_is_already_used_in_function_entries(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create();
+        $functionEntry = FunctionEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+        ]);
+
+        FunctionPackage::query()->create([
+            'function_entry_id' => $functionEntry->id,
+            'package_id' => $package->id,
+            'name_snapshot' => $package->name,
+            'code_snapshot' => $package->code,
+            'total_minor' => 100000,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.master-data.packages.destroy', $package))
+            ->assertRedirect(route('admin.master-data.packages.index'))
+            ->assertSessionHas('error', 'This package is already used in Function Entry records and cannot be deleted.');
+
+        $this->assertDatabaseHas('packages', ['id' => $package->id]);
+    }
+
+    public function test_admin_cannot_delete_service_that_is_already_used_in_function_entries(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $package = Package::factory()->create();
+        $service = Service::factory()->create();
+        $functionEntry = FunctionEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+        ]);
+
+        $functionPackage = FunctionPackage::query()->create([
+            'function_entry_id' => $functionEntry->id,
+            'package_id' => $package->id,
+            'name_snapshot' => $package->name,
+            'code_snapshot' => $package->code,
+            'total_minor' => 100000,
+        ]);
+
+        FunctionServiceLine::query()->create([
+            'function_package_id' => $functionPackage->id,
+            'service_id' => $service->id,
+            'sort_order' => 1,
+            'is_selected' => true,
+            'item_name_snapshot' => $service->name,
+            'rate_minor' => 50000,
+            'uses_persons' => false,
+            'person_input_mode' => FunctionServiceLine::PERSON_MODE_NONE,
+            'persons' => 0,
+            'extra_charge_minor' => 0,
+            'notes' => null,
+            'line_total_minor' => 50000,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.master-data.services.destroy', $service))
+            ->assertRedirect(route('admin.master-data.services.index'))
+            ->assertSessionHas('error', 'This service is already used in Function Entry records and cannot be deleted.');
+
+        $this->assertDatabaseHas('services', ['id' => $service->id]);
+    }
+
+    public function test_inactive_assigned_service_is_marked_and_warned_in_employee_setup_workspace(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create(['name' => 'Garden Court']);
+        $package = Package::factory()->create(['name' => 'Corporate Lite']);
+        $service = Service::factory()->create([
+            'name' => 'Legacy Service',
+            'is_active' => false,
+        ]);
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+                'package' => $package->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Inactive service')
+            ->assertSee('They will not appear in active service assignment lists or future employee package rows.');
+    }
+
+    public function test_admin_cannot_delete_venue_that_has_recorded_activity(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+
+        FunctionEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.master-data.venues.destroy', $venue))
+            ->assertRedirect(route('admin.master-data.venues.index'))
+            ->assertSessionHas('error', 'This venue is still assigned or has recorded activity. Remove the links or history dependency before deleting it.');
+
+        $this->assertDatabaseHas('venues', ['id' => $venue->id]);
     }
 
     public function test_editing_employee_account_does_not_remove_existing_setup_when_venue_fields_are_absent(): void

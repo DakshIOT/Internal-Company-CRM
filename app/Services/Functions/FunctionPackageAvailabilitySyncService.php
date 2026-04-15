@@ -51,6 +51,7 @@ class FunctionPackageAvailabilitySyncService
         }
 
         $services = $functionPackage->package?->services
+            ?->where('is_active', true)
             ?->whereIn('id', $missingServiceIds->all())
             ?->sortBy(fn (Service $service) => (int) ($service->pivot->sort_order ?? PHP_INT_MAX))
             ?->values()

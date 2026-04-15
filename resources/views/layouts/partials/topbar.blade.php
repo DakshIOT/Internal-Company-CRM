@@ -29,6 +29,12 @@
         </div>
 
         <div class="crm-shell-header-actions">
+            @if (session('error'))
+                <div class="hidden rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 lg:block">
+                    {{ session('error') }}
+                </div>
+            @endif
+
             @if (session('status'))
                 <div class="hidden rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 lg:block">
                     {{ session('status') }}

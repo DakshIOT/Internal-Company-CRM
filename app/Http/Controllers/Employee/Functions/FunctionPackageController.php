@@ -53,6 +53,7 @@ class FunctionPackageController extends Controller
                 ->pluck('service_id');
 
             $services = $package->services()
+                ->where('services.is_active', true)
                 ->whereIn('services.id', $packageSpecificServiceIds)
                 ->get([
                     'services.id',

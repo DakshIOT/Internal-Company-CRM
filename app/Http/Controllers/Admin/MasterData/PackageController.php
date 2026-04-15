@@ -101,11 +101,36 @@ class PackageController extends Controller
 
     public function destroy(Package $package): RedirectResponse
     {
+        if ($package->functionPackages()->exists()) {
+            return redirect()
+                ->route('admin.master-data.packages.index')
+                ->with('error', 'This package is already used in Function Entry records and cannot be deleted.');
+        }
+
+        if ($package->assignments()->exists() || $package->serviceAssignments()->exists()) {
+            return redirect()
+                ->route('admin.master-data.packages.index')
+                ->with('error', 'This package is still assigned to employee setup records. Remove those assignments first.');
+        }
+
         $package->delete();
 
         return redirect()
             ->route('admin.master-data.packages.index')
             ->with('status', 'Package deleted successfully.');
+    }
+
+    public function toggleActive(Package $package): RedirectResponse
+    {
+        $package->update([
+            'is_active' => ! $package->is_active,
+        ]);
+
+        return redirect()
+            ->route('admin.master-data.packages.index')
+            ->with('status', $package->is_active
+                ? 'Package activated successfully.'
+                : 'Package deactivated successfully.');
     }
 
     protected function syncServices(Package $package, array $serviceIds, array $sortOrders): void
