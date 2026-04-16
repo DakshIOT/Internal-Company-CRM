@@ -953,6 +953,88 @@ class FunctionEntryTest extends TestCase
         $this->assertNotNull($functionPackage->serviceLines->firstWhere('service_id', $serviceB->id));
     }
 
+    public function test_existing_function_package_resyncs_service_rate_and_totals_when_master_service_rate_changes(): void
+    {
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $service = Service::factory()->create([
+            'name' => 'Resynced Service',
+            'standard_rate_minor' => 200000,
+            'uses_persons' => false,
+            'person_input_mode' => 'none',
+            'default_persons' => null,
+        ]);
+        $package = Package::factory()->create(['name' => 'Resynced Package']);
+        $package->services()->attach($service->id, ['sort_order' => 1]);
+
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.store'), [
+                'entry_date' => '2026-04-16',
+                'name' => 'Rate Sync Function',
+            ])->assertRedirect();
+
+        $functionEntry = FunctionEntry::firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.packages.store', $functionEntry), [
+                'package_id' => $package->id,
+            ])->assertRedirect();
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+        $serviceLine = $functionPackage->serviceLines->firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->put(route('employee.functions.packages.update', [$functionEntry, $functionPackage]), [
+                'service_lines' => [
+                    $serviceLine->id => [
+                        'is_selected' => '1',
+                        'rate' => '2000.00',
+                        'extra_charge' => '0.00',
+                        'notes' => 'Initial saved line',
+                    ],
+                ],
+            ])->assertRedirect();
+
+        $service->update([
+            'standard_rate_minor' => 300000,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.edit', $functionEntry))
+            ->assertOk()
+            ->assertSee('3000.00');
+
+        $functionEntry->refresh();
+        $functionPackage = $functionEntry->packages()->with('serviceLines')->firstOrFail();
+        $serviceLine = $functionPackage->serviceLines->firstOrFail();
+
+        $this->assertSame(300000, (int) $serviceLine->rate_minor);
+        $this->assertSame(300000, (int) $serviceLine->line_total_minor);
+        $this->assertSame(300000, (int) $functionPackage->total_minor);
+        $this->assertSame(300000, (int) $functionEntry->package_total_minor);
+        $this->assertSame(300000, (int) $functionEntry->function_total_minor);
+    }
+
     public function test_employee_can_preview_and_download_service_attachment_linked_through_function_package(): void
     {
         Storage::fake('local');

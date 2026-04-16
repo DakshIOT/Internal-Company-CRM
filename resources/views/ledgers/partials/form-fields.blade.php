@@ -40,7 +40,7 @@
 
         <div>
             <x-input-label for="amount" value="Amount" />
-            <x-text-input id="amount" name="amount" :value="old('amount', Money::formatMinor($entry->amount_minor))" class="crm-input mt-2 w-full" placeholder="Amount" />
+            <x-text-input id="amount" name="amount" :value="old('amount', Money::formatMinorInput($entry->amount_minor))" class="crm-input mt-2 w-full" placeholder="Amount" />
             <x-input-error :messages="$errors->get('amount')" class="mt-2" />
         </div>
     </div>

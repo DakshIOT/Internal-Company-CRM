@@ -24,6 +24,11 @@ class Money
         return number_format(((int) $value) / 100, 2, '.', ',');
     }
 
+    public static function formatMinorInput(?int $value): string
+    {
+        return number_format(((int) $value) / 100, 2, '.', '');
+    }
+
     public static function toDecimal(?int $value): float
     {
         return round(((int) $value) / 100, 2);

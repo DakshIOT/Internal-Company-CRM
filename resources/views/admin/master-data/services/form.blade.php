@@ -36,7 +36,7 @@
                     </div>
                     <div>
                         <x-input-label for="standard_rate" value="Standard rate" />
-                        <x-text-input id="standard_rate" name="standard_rate" :value="old('standard_rate', isset($service->standard_rate_minor) ? Money::formatMinor($service->standard_rate_minor) : '0.00')" class="crm-input mt-2 w-full" />
+                        <x-text-input id="standard_rate" name="standard_rate" :value="old('standard_rate', isset($service->standard_rate_minor) ? Money::formatMinorInput($service->standard_rate_minor) : '0.00')" class="crm-input mt-2 w-full" />
                         <x-input-error :messages="$errors->get('standard_rate')" class="mt-2" />
                     </div>
                     <div class="flex items-end">

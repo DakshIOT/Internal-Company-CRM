@@ -125,10 +125,10 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <x-text-input name="service_lines[{{ $line->id }}][rate]" x-model="rate" :value="old('service_lines.'.$line->id.'.rate', Money::formatMinor($line->rate_minor))" class="crm-input w-full min-w-[7rem] bg-slate-100" readonly />
+                                            <x-text-input name="service_lines[{{ $line->id }}][rate]" x-model="rate" :value="old('service_lines.'.$line->id.'.rate', Money::formatMinorInput($line->rate_minor))" class="crm-input w-full min-w-[7rem] bg-slate-100" readonly />
                                         </td>
                                         <td>
-                                            <x-text-input name="service_lines[{{ $line->id }}][extra_charge]" x-model="extra" :value="old('service_lines.'.$line->id.'.extra_charge', Money::formatMinor($line->extra_charge_minor))" class="crm-input w-full min-w-[7rem]" />
+                                            <x-text-input name="service_lines[{{ $line->id }}][extra_charge]" x-model="extra" :value="old('service_lines.'.$line->id.'.extra_charge', Money::formatMinorInput($line->extra_charge_minor))" class="crm-input w-full min-w-[7rem]" />
                                         </td>
                                         <td>
                                             <textarea name="service_lines[{{ $line->id }}][notes]" rows="2" class="crm-input min-w-[14rem]">{{ old('service_lines.'.$line->id.'.notes', $line->notes) }}</textarea>
@@ -236,7 +236,7 @@
                                         <option value="{{ $value }}" @selected($record->mode === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
-                                <x-text-input name="amount" :value="old('amount', Money::formatMinor($record->amount_minor))" class="crm-input w-full" />
+                                <x-text-input name="amount" :value="old('amount', Money::formatMinorInput($record->amount_minor))" class="crm-input w-full" />
                             </div>
                             <textarea name="note" rows="3" class="crm-input w-full">{{ old('note', $record->note) }}</textarea>
                             @include('employee.functions.partials.attachments', [
@@ -340,7 +340,7 @@
                                         <option value="{{ $value }}" @selected($record->mode === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
-                                <x-text-input name="amount" :value="Money::formatMinor($record->amount_minor)" class="crm-input w-full" />
+                                <x-text-input name="amount" :value="Money::formatMinorInput($record->amount_minor)" class="crm-input w-full" />
                             </div>
                             <textarea name="note" rows="3" class="crm-input w-full">{{ $record->note }}</textarea>
                             @include('employee.functions.partials.attachments', [
@@ -444,7 +444,7 @@
                                         <option value="{{ $value }}" @selected($record->mode === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
-                                <x-text-input name="amount" :value="Money::formatMinor($record->amount_minor)" class="crm-input w-full" />
+                                <x-text-input name="amount" :value="Money::formatMinorInput($record->amount_minor)" class="crm-input w-full" />
                             </div>
                             <textarea name="note" rows="3" class="crm-input w-full">{{ $record->note }}</textarea>
                             @include('employee.functions.partials.attachments', [

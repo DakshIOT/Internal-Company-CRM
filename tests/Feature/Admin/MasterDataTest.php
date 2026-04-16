@@ -193,6 +193,40 @@ class MasterDataTest extends TestCase
         ]);
     }
 
+    public function test_service_edit_form_uses_plain_decimal_input_and_allows_resave_without_retyping_rate(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $service = Service::factory()->create([
+            'name' => 'Large Rate Service',
+            'standard_rate_minor' => 100000,
+            'notes' => 'Old notes',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.services.edit', $service))
+            ->assertOk()
+            ->assertSee('value="1000.00"', false)
+            ->assertDontSee('value="1,000.00"', false);
+
+        $this->actingAs($admin)
+            ->put(route('admin.master-data.services.update', $service), [
+                'name' => $service->name,
+                'code' => $service->code,
+                'standard_rate' => '1000.00',
+                'person_input_mode' => $service->person_input_mode,
+                'default_persons' => $service->default_persons,
+                'notes' => 'Updated notes only',
+                'is_active' => '1',
+            ])
+            ->assertRedirect(route('admin.master-data.services.edit', $service));
+
+        $this->assertDatabaseHas('services', [
+            'id' => $service->id,
+            'standard_rate_minor' => 100000,
+            'notes' => 'Updated notes only',
+        ]);
+    }
+
     public function test_admin_can_edit_package_and_save_updated_details_and_service_mapping(): void
     {
         $admin = User::factory()->admin()->create();

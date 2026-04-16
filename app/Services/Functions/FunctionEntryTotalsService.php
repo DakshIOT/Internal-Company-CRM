@@ -17,7 +17,7 @@ class FunctionEntryTotalsService
 
     public function recalculate(FunctionEntry $functionEntry): FunctionEntry
     {
-        $functionEntry->loadMissing([
+        $functionEntry->load([
             'packages.serviceLines',
             'extraCharges',
             'installments',

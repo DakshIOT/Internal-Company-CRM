@@ -177,7 +177,9 @@ class FunctionPackageController extends Controller
         abort_unless((int) $functionPackage->function_entry_id === (int) $functionEntry->id, 404);
 
         $functionPackage->loadMissing(['package.services', 'serviceLines']);
-        $this->availabilitySyncService->syncFunctionPackage($functionPackage, $functionEntry->user, (int) $functionEntry->venue_id);
+        if ($this->availabilitySyncService->syncFunctionPackage($functionPackage, $functionEntry->user, (int) $functionEntry->venue_id)) {
+            $this->totalsService->recalculate($functionEntry);
+        }
 
         return $functionPackage->fresh(['serviceLines.service.attachments']);
     }
