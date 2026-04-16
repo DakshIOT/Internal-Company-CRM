@@ -2,6 +2,7 @@
     $attachments = $entry->attachments ?? collect();
     $showUpload = $showUpload ?? true;
     $allowDelete = $allowDelete ?? false;
+    $deleteFormIdPrefix = $deleteFormIdPrefix ?? 'attachment-delete';
 @endphp
 
 <div class="space-y-3">
@@ -55,13 +56,9 @@
                             Download
                         </a>
                         @if ($allowDelete)
-                            <button type="submit" form="attachment-delete-{{ $routeKey }}-{{ $attachment->id }}" class="crm-button border border-rose-200 bg-rose-50 px-4 py-2 text-rose-600 hover:border-rose-300">
+                            <button type="submit" form="{{ $deleteFormIdPrefix }}-{{ $attachment->id }}" class="crm-button border border-rose-200 bg-rose-50 px-4 py-2 text-rose-600 hover:border-rose-300">
                                 Remove
                             </button>
-                            <form id="attachment-delete-{{ $routeKey }}-{{ $attachment->id }}" method="POST" action="{{ route($destroyRoute, [$routeKey => $entry, 'attachment' => $attachment]) }}" class="hidden">
-                                @csrf
-                                @method('DELETE')
-                            </form>
                         @endif
                     </div>
                 </div>

@@ -78,6 +78,42 @@ class AdminIncomeEntryTest extends TestCase
             ->assertSee('Back to list');
     }
 
+    public function test_admin_can_remove_admin_income_attachment_from_edit_page(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->admin()->create();
+        $entry = AdminIncomeEntry::factory()->create([
+            'user_id' => $admin->id,
+        ]);
+        $attachment = $entry->attachments()->create([
+            'uploaded_by' => $admin->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/admin-income/remove-me.pdf',
+            'original_name' => 'remove-me.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.admin-income.edit', $entry))
+            ->assertOk()
+            ->assertSee('form="attachment-delete-'.$attachment->id.'"', false)
+            ->assertSee('id="attachment-delete-'.$attachment->id.'"', false);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.admin-income.attachments.destroy', [
+                'adminIncome' => $entry,
+                'attachment' => $attachment,
+            ]))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Attachment removed.');
+
+        $this->assertDatabaseMissing('attachments', [
+            'id' => $attachment->id,
+        ]);
+    }
+
     public function test_admin_income_index_exposes_export_button_and_export_includes_attachment_names_and_urls(): void
     {
         $admin = User::factory()->admin()->create();

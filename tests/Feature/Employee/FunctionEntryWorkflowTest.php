@@ -215,4 +215,123 @@ class FunctionEntryWorkflowTest extends TestCase
         $this->assertSame(0, (int) $functionEntry->frozen_fund_minor);
         $this->assertSame(0, (int) $functionEntry->net_total_after_frozen_fund_minor);
     }
+
+    public function test_employee_can_edit_and_delete_extra_charges_installments_and_discounts_from_action_center(): void
+    {
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+
+        $functionEntry = FunctionEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'entry_date' => '2026-04-16',
+        ]);
+
+        $extraCharge = $functionEntry->extraCharges()->create([
+            'entry_date' => '2026-04-16',
+            'name' => 'Generator',
+            'mode' => 'cash',
+            'amount_minor' => 10000,
+            'note' => 'Original extra charge',
+        ]);
+        $installment = $functionEntry->installments()->create([
+            'entry_date' => '2026-04-16',
+            'name' => 'Advance',
+            'mode' => 'upi',
+            'amount_minor' => 20000,
+            'note' => 'Original installment',
+        ]);
+        $discount = $functionEntry->discounts()->create([
+            'entry_date' => '2026-04-16',
+            'name' => 'Referral',
+            'mode' => 'other',
+            'amount_minor' => 5000,
+            'note' => 'Original discount',
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->put(route('employee.functions.extra-charges.update', [$functionEntry, $extraCharge]), [
+                'entry_date' => '2026-04-17',
+                'name' => 'Generator Updated',
+                'mode' => 'card',
+                'amount' => '150.00',
+                'note' => 'Updated extra charge',
+            ])
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'extra-charges']));
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->put(route('employee.functions.installments.update', [$functionEntry, $installment]), [
+                'entry_date' => '2026-04-17',
+                'name' => 'Advance Updated',
+                'mode' => 'cash',
+                'amount' => '250.00',
+                'note' => 'Updated installment',
+            ])
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'installments']));
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->put(route('employee.functions.discounts.update', [$functionEntry, $discount]), [
+                'entry_date' => '2026-04-17',
+                'name' => 'Referral Updated',
+                'mode' => 'cash',
+                'amount' => '75.00',
+                'note' => 'Updated discount',
+            ])
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'discounts']));
+
+        $this->assertDatabaseHas('function_extra_charges', [
+            'id' => $extraCharge->id,
+            'name' => 'Generator Updated',
+            'mode' => 'card',
+            'amount_minor' => 15000,
+            'note' => 'Updated extra charge',
+        ]);
+        $this->assertDatabaseHas('function_installments', [
+            'id' => $installment->id,
+            'name' => 'Advance Updated',
+            'mode' => 'cash',
+            'amount_minor' => 25000,
+            'note' => 'Updated installment',
+        ]);
+        $this->assertDatabaseHas('function_discounts', [
+            'id' => $discount->id,
+            'name' => 'Referral Updated',
+            'mode' => 'cash',
+            'amount_minor' => 7500,
+            'note' => 'Updated discount',
+        ]);
+
+        $functionEntry->refresh();
+        $this->assertSame(15000, (int) $functionEntry->extra_charge_total_minor);
+        $this->assertSame(25000, (int) $functionEntry->paid_total_minor);
+        $this->assertSame(7500, (int) $functionEntry->discount_total_minor);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->delete(route('employee.functions.extra-charges.destroy', [$functionEntry, $extraCharge]))
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'extra-charges']));
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->delete(route('employee.functions.installments.destroy', [$functionEntry, $installment]))
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'installments']));
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->delete(route('employee.functions.discounts.destroy', [$functionEntry, $discount]))
+            ->assertRedirect(route('employee.functions.edit', ['functionEntry' => $functionEntry, 'tab' => 'discounts']));
+
+        $this->assertDatabaseMissing('function_extra_charges', ['id' => $extraCharge->id]);
+        $this->assertDatabaseMissing('function_installments', ['id' => $installment->id]);
+        $this->assertDatabaseMissing('function_discounts', ['id' => $discount->id]);
+
+        $functionEntry->refresh();
+        $this->assertSame(0, (int) $functionEntry->extra_charge_total_minor);
+        $this->assertSame(0, (int) $functionEntry->paid_total_minor);
+        $this->assertSame(0, (int) $functionEntry->discount_total_minor);
+    }
 }

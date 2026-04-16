@@ -188,6 +188,7 @@
                         'previewRoute' => 'admin.master-data.services.attachments.preview',
                         'downloadRoute' => 'admin.master-data.services.attachments.download',
                         'destroyRoute' => 'admin.master-data.services.attachments.destroy',
+                        'deleteFormIdPrefix' => 'attachment-delete',
                         'allowDelete' => $isEditing,
                         'showUpload' => true,
                         'inputId' => 'service_attachments',
@@ -230,4 +231,13 @@
             </div>
         </aside>
     </form>
+
+    @if ($isEditing)
+        @foreach ($service->attachments as $attachment)
+            <form id="attachment-delete-{{ $attachment->id }}" method="POST" action="{{ route('admin.master-data.services.attachments.destroy', ['service' => $service, 'attachment' => $attachment]) }}" class="hidden">
+                @csrf
+                @method('DELETE')
+            </form>
+        @endforeach
+    @endif
 </x-app-layout>

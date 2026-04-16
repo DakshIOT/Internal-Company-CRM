@@ -89,6 +89,49 @@ class LedgerEntryTest extends TestCase
             ->assertOk();
     }
 
+    public function test_employee_can_remove_daily_income_attachment_from_edit_page(): void
+    {
+        Storage::fake('local');
+
+        $employee = User::factory()->employeeA()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $entry = DailyIncomeEntry::factory()->create([
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+        ]);
+
+        $attachment = $entry->attachments()->create([
+            'uploaded_by' => $employee->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/daily-income/remove-me.pdf',
+            'original_name' => 'remove-me.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.daily-income.edit', $entry))
+            ->assertOk()
+            ->assertSee('form="attachment-delete-'.$attachment->id.'"', false)
+            ->assertSee('id="attachment-delete-'.$attachment->id.'"', false);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->delete(route('employee.daily-income.attachments.destroy', [
+                'dailyIncome' => $entry,
+                'attachment' => $attachment,
+            ]))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Attachment removed.');
+
+        $this->assertDatabaseMissing('attachments', [
+            'id' => $attachment->id,
+        ]);
+    }
+
     public function test_employee_a_can_create_daily_billing_entry(): void
     {
         Storage::fake('local');

@@ -143,6 +143,212 @@ class MasterDataTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_edit_service_and_save_updated_rate_notes_and_package_mapping(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $oldPackage = Package::factory()->create();
+        $newPackage = Package::factory()->create();
+        $service = Service::factory()->create([
+            'name' => 'Original Service',
+            'code' => 'SERV-OLD',
+            'standard_rate_minor' => 15000,
+            'person_input_mode' => Service::PERSON_MODE_FIXED,
+            'default_persons' => 2,
+            'notes' => 'Original notes',
+            'is_active' => true,
+        ]);
+        $service->packages()->attach($oldPackage->id, ['sort_order' => 1]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.master-data.services.update', $service), [
+                'name' => 'Updated Service',
+                'code' => 'SERV-NEW',
+                'standard_rate' => '325.50',
+                'person_input_mode' => Service::PERSON_MODE_EMPLOYEE,
+                'default_persons' => '',
+                'notes' => 'Updated service notes',
+                'is_active' => '1',
+                'package_ids' => [$newPackage->id],
+            ])
+            ->assertRedirect(route('admin.master-data.services.edit', $service));
+
+        $this->assertDatabaseHas('services', [
+            'id' => $service->id,
+            'name' => 'Updated Service',
+            'code' => 'SERV-NEW',
+            'standard_rate_minor' => 32550,
+            'person_input_mode' => Service::PERSON_MODE_EMPLOYEE,
+            'default_persons' => null,
+            'notes' => 'Updated service notes',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseMissing('package_service', [
+            'package_id' => $oldPackage->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('package_service', [
+            'package_id' => $newPackage->id,
+            'service_id' => $service->id,
+            'sort_order' => 1,
+        ]);
+    }
+
+    public function test_admin_can_edit_package_and_save_updated_details_and_service_mapping(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $serviceA = Service::factory()->create();
+        $serviceB = Service::factory()->create();
+        $package = Package::factory()->create([
+            'name' => 'Old Package',
+            'code' => 'OLD-PKG',
+            'description' => 'Old description',
+            'is_active' => true,
+        ]);
+        $package->services()->attach($serviceA->id, ['sort_order' => 1]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.master-data.packages.update', $package), [
+                'name' => 'Updated Package',
+                'code' => 'NEW-PKG',
+                'description' => 'Updated description',
+                'service_ids' => [$serviceB->id],
+                'sort_orders' => [$serviceB->id => 3],
+            ])
+            ->assertRedirect(route('admin.master-data.packages.edit', $package));
+
+        $this->assertDatabaseHas('packages', [
+            'id' => $package->id,
+            'name' => 'Updated Package',
+            'code' => 'NEW-PKG',
+            'description' => 'Updated description',
+            'is_active' => false,
+        ]);
+        $this->assertDatabaseMissing('package_service', [
+            'package_id' => $package->id,
+            'service_id' => $serviceA->id,
+        ]);
+        $this->assertDatabaseHas('package_service', [
+            'package_id' => $package->id,
+            'service_id' => $serviceB->id,
+            'sort_order' => 3,
+        ]);
+    }
+
+    public function test_admin_can_edit_venue_and_save_updated_vendor_slots_and_employee_links(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employeeA = User::factory()->employeeA()->create();
+        $employeeB = User::factory()->employeeB()->create();
+        $venue = Venue::factory()->create([
+            'name' => 'Old Venue',
+            'code' => 'OLD-VENUE',
+            'is_active' => true,
+        ]);
+        $venue->vendors()->createMany([
+            ['slot_number' => 1, 'name' => 'Old Vendor 1'],
+            ['slot_number' => 2, 'name' => 'Old Vendor 2'],
+            ['slot_number' => 3, 'name' => 'Old Vendor 3'],
+            ['slot_number' => 4, 'name' => 'Old Vendor 4'],
+        ]);
+        $venue->users()->attach($employeeA->id, ['frozen_fund_minor' => 0]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.master-data.venues.update', $venue), [
+                'name' => 'Updated Venue',
+                'code' => 'NEW-VENUE',
+                'vendor_slots' => [
+                    1 => 'Lighting',
+                    2 => 'Sound',
+                    3 => 'Catering',
+                    4 => 'Florist',
+                ],
+                'employee_ids' => [$employeeB->id],
+            ])
+            ->assertRedirect(route('admin.master-data.venues.edit', $venue));
+
+        $this->assertDatabaseHas('venues', [
+            'id' => $venue->id,
+            'name' => 'Updated Venue',
+            'code' => 'NEW-VENUE',
+            'is_active' => false,
+        ]);
+        $this->assertDatabaseHas('venue_vendors', [
+            'venue_id' => $venue->id,
+            'slot_number' => 1,
+            'name' => 'Lighting',
+        ]);
+        $this->assertDatabaseHas('user_venue', [
+            'user_id' => $employeeB->id,
+            'venue_id' => $venue->id,
+        ]);
+        $this->assertDatabaseMissing('user_venue', [
+            'user_id' => $employeeA->id,
+            'venue_id' => $venue->id,
+        ]);
+    }
+
+    public function test_admin_can_add_multiple_service_attachments_and_remove_one_from_edit_page(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->admin()->create();
+        $service = Service::factory()->create();
+        $existingAttachment = $service->attachments()->create([
+            'uploaded_by' => $admin->id,
+            'disk' => 'local',
+            'storage_path' => 'attachments/service/existing-guide.pdf',
+            'original_name' => 'existing-guide.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 1024,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.services.edit', $service))
+            ->assertOk()
+            ->assertSee('form="attachment-delete-'.$existingAttachment->id.'"', false)
+            ->assertSee('id="attachment-delete-'.$existingAttachment->id.'"', false);
+
+        $this->actingAs($admin)
+            ->put(route('admin.master-data.services.update', $service), [
+                'name' => $service->name,
+                'code' => $service->code,
+                'standard_rate' => '150.00',
+                'person_input_mode' => Service::PERSON_MODE_EMPLOYEE,
+                'notes' => 'Updated notes',
+                'is_active' => '1',
+                'attachments' => [
+                    UploadedFile::fake()->create('setup-guide.pdf', 40, 'application/pdf'),
+                    UploadedFile::fake()->image('reference-photo.jpg'),
+                ],
+            ])
+            ->assertRedirect(route('admin.master-data.services.edit', $service));
+
+        $this->assertSame(3, $service->fresh()->attachments()->count());
+        $this->assertDatabaseHas('attachments', [
+            'attachable_type' => Service::class,
+            'attachable_id' => $service->id,
+            'original_name' => 'setup-guide.pdf',
+        ]);
+        $this->assertDatabaseHas('attachments', [
+            'attachable_type' => Service::class,
+            'attachable_id' => $service->id,
+            'original_name' => 'reference-photo.jpg',
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.master-data.services.attachments.destroy', [
+                'service' => $service,
+                'attachment' => $existingAttachment,
+            ]))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Service attachment removed.');
+
+        $this->assertDatabaseMissing('attachments', [
+            'id' => $existingAttachment->id,
+        ]);
+        $this->assertSame(2, $service->fresh()->attachments()->count());
+    }
+
     public function test_admin_can_create_type_a_employee_and_continue_to_setup_workspace(): void
     {
         $admin = User::factory()->admin()->create();
