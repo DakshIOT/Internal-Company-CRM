@@ -99,6 +99,7 @@ Route::middleware(['auth', 'role:admin'])
                         Route::delete('/venues/{venue}/packages/{package}', [EmployeeAssignmentController::class, 'destroyPackage'])->name('packages.destroy');
                         Route::post('/venues/{venue}/packages/{package}/services', [EmployeeAssignmentController::class, 'storeService'])->name('services.store');
                         Route::post('/venues/{venue}/packages/{package}/services/attach', [EmployeeAssignmentController::class, 'attachService'])->name('services.attach');
+                        Route::delete('/venues/{venue}/packages/{package}/services', [EmployeeAssignmentController::class, 'destroyServices'])->name('services.bulk-destroy');
                         Route::delete('/venues/{venue}/packages/{package}/services/{service}', [EmployeeAssignmentController::class, 'destroyService'])->name('services.destroy');
                     });
                 Route::resource('services', ServiceController::class)->except('show');
@@ -112,6 +113,8 @@ Route::middleware(['auth', 'role:admin'])
                     ->name('services.toggle-active');
                 Route::patch('packages/{package}/toggle-active', [PackageController::class, 'toggleActive'])
                     ->name('packages.toggle-active');
+                Route::put('packages/{package}/mapping', [PackageController::class, 'updateMapping'])
+                    ->name('packages.mapping.update');
                 Route::resource('packages', PackageController::class)->except('show');
                 Route::get('/function-print-settings', [FunctionPrintSettingController::class, 'edit'])
                     ->name('function-print-settings.edit');

@@ -14,6 +14,7 @@ use App\Models\Venue;
 use App\Services\Files\AttachmentService;
 use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -21,6 +22,9 @@ use Illuminate\View\View;
 
 class EmployeeAssignmentController extends Controller
 {
+    private const ASSIGNED_SERVICE_PAGE_SIZE = 20;
+    private const CATALOG_PAGE_SIZE = 20;
+
     public function __construct(private AttachmentService $attachmentService)
     {
     }
@@ -36,9 +40,19 @@ class EmployeeAssignmentController extends Controller
             ?? $assignedVenues->first();
 
         $packageAssignments = collect();
-        $serviceAssignments = collect();
+        $serviceAssignments = null;
         $serviceCountsByPackage = collect();
         $selectedPackageAssignment = null;
+        $selectedPackageServiceCount = 0;
+        $selectedPackageAssignedServiceIds = [];
+        $selectedPackageServiceFilters = [
+            'search' => trim((string) $request->string('service_search')),
+        ];
+        $catalogFilters = [
+            'venue_search' => trim((string) $request->string('venue_search')),
+            'package_search' => trim((string) $request->string('package_search')),
+            'available_service_search' => trim((string) $request->string('available_service_search')),
+        ];
 
         if ($selectedVenue) {
             $packageAssignments = PackageAssignment::query()
@@ -60,42 +74,110 @@ class EmployeeAssignmentController extends Controller
                 ?? $packageAssignments->first();
 
             if ($selectedPackageAssignment) {
-                $serviceAssignments = PackageServiceAssignment::query()
+                $selectedPackageAssignedServiceIds = PackageServiceAssignment::query()
                     ->where('user_id', $employee->id)
                     ->where('venue_id', $selectedVenue->id)
                     ->where('package_id', $selectedPackageAssignment->package_id)
+                    ->pluck('service_id')
+                    ->map(fn ($serviceId) => (int) $serviceId)
+                    ->all();
+
+                $serviceAssignmentsQuery = PackageServiceAssignment::query()
+                    ->where('user_id', $employee->id)
+                    ->where('venue_id', $selectedVenue->id)
+                    ->where('package_id', $selectedPackageAssignment->package_id)
+                    ->join('services', 'services.id', '=', 'package_service_assignments.service_id')
+                    ->select('package_service_assignments.*')
+                    ->when($selectedPackageServiceFilters['search'] !== '', function ($query) use ($selectedPackageServiceFilters) {
+                        $search = $selectedPackageServiceFilters['search'];
+
+                        $query->where(function ($builder) use ($search) {
+                            $builder
+                                ->where('services.name', 'like', "%{$search}%")
+                                ->orWhere('services.code', 'like', "%{$search}%")
+                                ->orWhere('services.notes', 'like', "%{$search}%");
+                        });
+                    })
                     ->with('service.attachments')
-                    ->get()
-                    ->sortBy(fn (PackageServiceAssignment $assignment) => strtolower((string) $assignment->service?->name))
-                    ->values();
+                    ->orderByDesc('services.is_active')
+                    ->orderBy('services.name');
+
+                $selectedPackageServiceCount = (clone $serviceAssignmentsQuery)->count();
+                $serviceAssignments = $serviceAssignmentsQuery
+                    ->paginate(self::ASSIGNED_SERVICE_PAGE_SIZE, ['package_service_assignments.*'], 'service_page')
+                    ->withQueryString();
             }
         }
 
         $packageIdsInVenue = $packageAssignments->pluck('package_id')->all();
-        $serviceIdsInPackage = $serviceAssignments->pluck('service_id')->all();
+        $serviceIdsInPackage = $selectedPackageAssignedServiceIds;
+        $availableVenues = Venue::query()
+            ->active()
+            ->whereNotIn('id', $assignedVenues->pluck('id'))
+            ->when($catalogFilters['venue_search'] !== '', function ($query) use ($catalogFilters) {
+                $search = $catalogFilters['venue_search'];
+
+                $query->where(function ($builder) use ($search) {
+                    $builder
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->paginate(self::CATALOG_PAGE_SIZE, ['*'], 'available_venue_page')
+            ->withQueryString();
+
+        $availablePackages = $selectedVenue
+            ? Package::query()
+                ->active()
+                ->whereNotIn('id', $packageIdsInVenue)
+                ->when($catalogFilters['package_search'] !== '', function ($query) use ($catalogFilters) {
+                    $search = $catalogFilters['package_search'];
+
+                    $query->where(function ($builder) use ($search) {
+                        $builder
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('code', 'like', "%{$search}%")
+                            ->orWhere('description', 'like', "%{$search}%");
+                    });
+                })
+                ->orderBy('name')
+                ->paginate(self::CATALOG_PAGE_SIZE, ['*'], 'available_package_page')
+                ->withQueryString()
+            : $this->emptyCatalogPaginator('available_package_page');
+
+        $availableServices = $selectedPackageAssignment
+            ? Service::query()
+                ->active()
+                ->whereNotIn('id', $serviceIdsInPackage)
+                ->when($catalogFilters['available_service_search'] !== '', function ($query) use ($catalogFilters) {
+                    $search = $catalogFilters['available_service_search'];
+
+                    $query->where(function ($builder) use ($search) {
+                        $builder
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('code', 'like', "%{$search}%")
+                            ->orWhere('notes', 'like', "%{$search}%");
+                    });
+                })
+                ->orderBy('name')
+                ->paginate(self::CATALOG_PAGE_SIZE, ['*'], 'available_service_page')
+                ->withQueryString()
+            : $this->emptyCatalogPaginator('available_service_page');
 
         return view('admin.master-data.employees.assignments', [
             'employee' => $employee,
             'assignedVenues' => $assignedVenues,
-            'availableVenues' => Venue::query()
-                ->active()
-                ->whereNotIn('id', $assignedVenues->pluck('id'))
-                ->orderBy('name')
-                ->get(),
-            'availablePackages' => Package::query()
-                ->active()
-                ->when($selectedVenue, fn ($query) => $query->whereNotIn('id', $packageIdsInVenue))
-                ->orderBy('name')
-                ->get(),
-            'availableServices' => Service::query()
-                ->active()
-                ->when($selectedPackageAssignment, fn ($query) => $query->whereNotIn('id', $serviceIdsInPackage))
-                ->orderBy('name')
-                ->get(),
+            'availableVenues' => $availableVenues,
+            'availablePackages' => $availablePackages,
+            'availableServices' => $availableServices,
             'packageAssignments' => $packageAssignments,
             'selectedVenue' => $selectedVenue,
             'selectedPackageAssignment' => $selectedPackageAssignment,
             'serviceAssignments' => $serviceAssignments,
+            'selectedPackageServiceCount' => $selectedPackageServiceCount,
+            'selectedPackageServiceFilters' => $selectedPackageServiceFilters,
+            'catalogFilters' => $catalogFilters,
             'serviceCountsByPackage' => $serviceCountsByPackage,
             'selectedFrozenFund' => $selectedVenue ? Money::formatMinor($employee->frozenFundMinorForVenue($selectedVenue->id)) : Money::formatMinor(0),
         ]);
@@ -346,13 +428,40 @@ class EmployeeAssignmentController extends Controller
             'package_id' => ['required', 'integer', 'exists:packages,id'],
         ]);
 
-        PackageAssignment::query()->firstOrCreate([
-            'user_id' => $employee->id,
-            'venue_id' => $venue->id,
-            'package_id' => (int) $data['package_id'],
-        ]);
+        $package = Package::query()->findOrFail((int) $data['package_id']);
 
-        return $this->redirectToWorkspace($employee, $venue->id, (int) $data['package_id'], 'Package assigned to this employee venue.');
+        DB::transaction(function () use ($employee, $venue, $package) {
+            PackageAssignment::query()->firstOrCreate([
+                'user_id' => $employee->id,
+                'venue_id' => $venue->id,
+                'package_id' => $package->id,
+            ]);
+
+            $packageServiceRows = $package->services()
+                ->where('services.is_active', true)
+                ->pluck('services.id')
+                ->map(fn ($serviceId) => [
+                    'user_id' => $employee->id,
+                    'venue_id' => $venue->id,
+                    'package_id' => $package->id,
+                    'service_id' => (int) $serviceId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])
+                ->all();
+
+            if ($packageServiceRows !== []) {
+                PackageServiceAssignment::query()->upsert(
+                    $packageServiceRows,
+                    ['user_id', 'venue_id', 'package_id', 'service_id'],
+                    ['updated_at']
+                );
+            }
+
+            $this->syncDerivedServiceAssignments($employee, $venue);
+        });
+
+        return $this->redirectToWorkspace($employee, $venue->id, $package->id, 'Package assigned with its mapped active services. Remove any services you do not want for this employee.');
     }
 
     public function destroyPackage(User $employee, Venue $venue, Package $package): RedirectResponse
@@ -495,6 +604,31 @@ class EmployeeAssignmentController extends Controller
         return $this->redirectToWorkspace($employee, $venue->id, $package->id, 'Service removed from this employee package.');
     }
 
+    public function destroyServices(Request $request, User $employee, Venue $venue, Package $package): RedirectResponse
+    {
+        abort_if($employee->isAdmin(), 404);
+        $this->employeeVenueOrFail($employee, $venue);
+        $this->employeePackageOrFail($employee, $venue, $package);
+
+        $data = $request->validate([
+            'service_ids' => ['required', 'array', 'min:1'],
+            'service_ids.*' => ['integer', 'exists:services,id'],
+        ]);
+
+        DB::transaction(function () use ($employee, $venue, $package, $data) {
+            PackageServiceAssignment::query()
+                ->where('user_id', $employee->id)
+                ->where('venue_id', $venue->id)
+                ->where('package_id', $package->id)
+                ->whereIn('service_id', collect($data['service_ids'])->map(fn ($serviceId) => (int) $serviceId))
+                ->delete();
+
+            $this->syncDerivedServiceAssignments($employee, $venue);
+        });
+
+        return $this->redirectToWorkspace($employee, $venue->id, $package->id, 'Selected services removed from this employee package.');
+    }
+
     private function employeeVenueOrFail(User $employee, Venue $venue): void
     {
         abort_unless($employee->venues()->whereKey($venue->id)->exists(), 404);
@@ -521,6 +655,20 @@ class EmployeeAssignmentController extends Controller
                 'package' => $packageId,
             ], fn ($value) => ! is_null($value)))
             ->with('status', $status);
+    }
+
+    private function emptyCatalogPaginator(string $pageName): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator(
+            [],
+            0,
+            self::CATALOG_PAGE_SIZE,
+            1,
+            [
+                'path' => request()->url(),
+                'pageName' => $pageName,
+            ]
+        );
     }
 
     private function syncVendorSlots(Venue $venue, array $vendorSlots): void

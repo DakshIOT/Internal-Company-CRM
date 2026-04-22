@@ -87,9 +87,10 @@ class MasterDataTest extends TestCase
             ],
         ]);
 
-        $response->assertRedirect(route('admin.master-data.packages.index'));
-
         $package = Package::firstOrFail();
+
+        $response->assertRedirect(route('admin.master-data.packages.edit', $package));
+
 
         $this->assertDatabaseHas('packages', [
             'id' => $package->id,
@@ -245,6 +246,12 @@ class MasterDataTest extends TestCase
                 'name' => 'Updated Package',
                 'code' => 'NEW-PKG',
                 'description' => 'Updated description',
+            ])
+            ->assertRedirect(route('admin.master-data.packages.edit', $package));
+
+        $this->actingAs($admin)
+            ->put(route('admin.master-data.packages.mapping.update', $package), [
+                'visible_service_ids' => [$serviceA->id, $serviceB->id],
                 'service_ids' => [$serviceB->id],
                 'sort_orders' => [$serviceB->id => 3],
             ])
@@ -266,6 +273,33 @@ class MasterDataTest extends TestCase
             'service_id' => $serviceB->id,
             'sort_order' => 3,
         ]);
+    }
+
+    public function test_package_edit_service_catalog_uses_search_and_pagination(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $package = Package::factory()->create();
+
+        Service::factory()->count(25)->create();
+        $targetService = Service::factory()->create([
+            'name' => 'Needle Service',
+            'code' => 'NEEDLE',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.packages.edit', $package))
+            ->assertOk()
+            ->assertSee('Save visible page mapping')
+            ->assertSee('Only 20 services load at a time.');
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.packages.edit', [
+                'package' => $package,
+                'service_search' => 'Needle',
+            ]))
+            ->assertOk()
+            ->assertSee('Needle Service')
+            ->assertSee('NEEDLE');
     }
 
     public function test_admin_can_edit_venue_and_save_updated_vendor_slots_and_employee_links(): void
@@ -521,6 +555,7 @@ class MasterDataTest extends TestCase
         $venue = Venue::factory()->create();
         $package = Package::factory()->create();
         $service = Service::factory()->create();
+        $package->services()->attach($service->id, ['sort_order' => 1]);
 
         $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.venues.attach', $employee), [
             'venue_id' => $venue->id,
@@ -528,10 +563,6 @@ class MasterDataTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.packages.attach', [$employee, $venue]), [
             'package_id' => $package->id,
-        ])->assertRedirect();
-
-        $this->actingAs($admin)->post(route('admin.master-data.employees.assignments.services.attach', [$employee, $venue, $package]), [
-            'service_ids' => [$service->id],
         ])->assertRedirect();
 
         $this->assertDatabaseHas('user_venue', [
@@ -551,6 +582,27 @@ class MasterDataTest extends TestCase
             'user_id' => $employee->id,
             'venue_id' => $venue->id,
             'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseHas('service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+
+        $this->actingAs($admin)->delete(route('admin.master-data.employees.assignments.services.bulk-destroy', [$employee, $venue, $package]), [
+            'service_ids' => [$service->id],
+        ])->assertRedirect();
+
+        $this->assertDatabaseMissing('package_service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+        $this->assertDatabaseMissing('service_assignments', [
+            'user_id' => $employee->id,
+            'venue_id' => $venue->id,
             'service_id' => $service->id,
         ]);
     }

@@ -4,7 +4,8 @@
 
     $inactiveAssignedPackages = $packageAssignments->filter(fn ($assignment) => ! ($assignment->package?->is_active ?? false));
     $selectedPackageIsInactive = $selectedPackageAssignment && ! ($selectedPackageAssignment->package?->is_active ?? false);
-    $inactiveAssignedServices = $serviceAssignments->filter(fn ($assignment) => ! ($assignment->service?->is_active ?? false));
+    $serviceAssignmentCollection = $serviceAssignments ? collect($serviceAssignments->items()) : collect();
+    $inactiveAssignedServices = $serviceAssignmentCollection->filter(fn ($assignment) => ! ($assignment->service?->is_active ?? false));
 @endphp
 
 <x-app-layout>
@@ -39,7 +40,7 @@
                 <div class="mt-6 grid gap-3 sm:grid-cols-3">
                     <div class="rounded-[1.25rem] bg-slate-50 p-4"><p class="crm-section-title">Venues</p><p class="mt-3 text-3xl font-semibold text-slate-950">{{ $assignedVenues->count() }}</p></div>
                     <div class="rounded-[1.25rem] bg-slate-50 p-4"><p class="crm-section-title">Packages</p><p class="mt-3 text-3xl font-semibold text-slate-950">{{ $packageAssignments->count() }}</p></div>
-                    <div class="rounded-[1.25rem] bg-slate-50 p-4"><p class="crm-section-title">Services</p><p class="mt-3 text-3xl font-semibold text-slate-950">{{ $serviceAssignments->count() }}</p></div>
+                    <div class="rounded-[1.25rem] bg-slate-50 p-4"><p class="crm-section-title">Services</p><p class="mt-3 text-3xl font-semibold text-slate-950">{{ $selectedPackageServiceCount }}</p></div>
                 </div>
             </article>
 
@@ -72,7 +73,7 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button type="button" class="crm-button crm-button-primary justify-center" x-data x-on:click="$dispatch('open-modal', 'create-venue-modal')">Create venue</button>
-                    <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-venue-modal')" @disabled($availableVenues->isEmpty())>Assign existing venue</button>
+                    <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-venue-modal')" @disabled($availableVenues->total() === 0)>Assign existing venue</button>
                 </div>
             </div>
 
@@ -153,7 +154,7 @@
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 <button type="button" class="crm-button crm-button-primary justify-center" x-data x-on:click="$dispatch('open-modal', 'create-package-modal')">Create package</button>
-                                <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-package-modal')" @disabled($availablePackages->isEmpty())>Assign existing package</button>
+                                <button type="button" class="crm-button crm-button-secondary justify-center" x-data x-on:click="$dispatch('open-modal', 'assign-package-modal')" @disabled($availablePackages->total() === 0)>Assign existing package</button>
                             </div>
                         </div>
 
@@ -220,7 +221,7 @@
                 </article>
 
                 <article class="min-w-0 space-y-6">
-                    <section class="crm-panel p-6" x-data="{ serviceSearch: '' }">
+                    <section class="crm-panel p-6" x-data="{ selectAllVisible: false }">
                         @if ($selectedPackageAssignment)
                             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                 <div>
@@ -237,8 +238,13 @@
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <button type="button" class="crm-button crm-button-primary justify-center disabled:cursor-not-allowed disabled:opacity-50" x-data x-on:click="$dispatch('open-modal', 'create-service-modal')" @disabled($selectedPackageIsInactive)>Create service</button>
-                                    <button type="button" class="crm-button crm-button-secondary justify-center disabled:cursor-not-allowed disabled:opacity-50" x-data x-on:click="$dispatch('open-modal', 'assign-service-modal')" @disabled($availableServices->isEmpty() || $selectedPackageIsInactive)>Assign existing service</button>
+                                    <button type="button" class="crm-button crm-button-secondary justify-center disabled:cursor-not-allowed disabled:opacity-50" x-data x-on:click="$dispatch('open-modal', 'assign-service-modal')" @disabled($availableServices->total() === 0 || $selectedPackageIsInactive)>Assign existing service</button>
                                 </div>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap items-center gap-2">
+                                <span class="crm-chip bg-cyan-50 text-cyan-700">{{ $selectedPackageServiceCount }} assigned</span>
+                                <span class="text-sm text-slate-500">Large packages are paginated so this workspace stays responsive.</span>
                             </div>
 
                             @if ($selectedPackageIsInactive)
@@ -254,14 +260,18 @@
                                 </div>
                             @endif
 
-                            @if ($serviceAssignments->count() > 6)
-                                <div class="mt-5 max-w-md">
+                            <form method="GET" action="{{ route('admin.master-data.employees.assignments.edit', $employee) }}" class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+                                <input type="hidden" name="venue" value="{{ $selectedVenue->id }}">
+                                <input type="hidden" name="package" value="{{ $selectedPackageAssignment->package_id }}">
+                                <div class="flex-1 max-w-xl">
                                     <x-input-label for="service_search" value="Search services in this package" />
-                                    <x-text-input id="service_search" x-model="serviceSearch" class="crm-input mt-2 w-full" placeholder="Search by service name, code, or mode" />
+                                    <x-text-input id="service_search" name="service_search" :value="$selectedPackageServiceFilters['search'] ?? ''" class="crm-input mt-2 w-full" placeholder="Search by service name, code, or notes" />
                                 </div>
-                            @endif
+                                <button type="submit" class="crm-button crm-button-secondary justify-center">Search</button>
+                                <a href="{{ route('admin.master-data.employees.assignments.edit', ['employee' => $employee, 'venue' => $selectedVenue->id, 'package' => $selectedPackageAssignment->package_id]) }}" class="crm-button crm-button-secondary justify-center">Reset</a>
+                            </form>
 
-                            @if ($serviceAssignments->isEmpty())
+                            @if ($serviceAssignments === null || $serviceAssignments->isEmpty())
                                 <div class="mt-5 rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
                                     <h3 class="text-xl font-semibold text-slate-950">No services in this package yet</h3>
                                     <p class="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
@@ -269,15 +279,31 @@
                                     </p>
                                 </div>
                             @else
-                                <div class="mt-5 crm-table-wrap">
+                                <form method="POST" action="{{ route('admin.master-data.employees.assignments.services.bulk-destroy', [$employee, $selectedVenue, $selectedPackageAssignment->package]) }}" class="mt-5 space-y-4">
+                                    @csrf
+                                    @method('DELETE')
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                            <input type="checkbox" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                                                   x-on:change="document.querySelectorAll('[data-assigned-service-toggle]').forEach((input) => input.checked = $event.target.checked)">
+                                            Select visible page
+                                        </label>
+                                        <button type="submit" class="crm-button crm-button-secondary justify-center" onclick="return confirm('Remove selected services from this employee package?')">
+                                            Remove selected
+                                        </button>
+                                    </div>
+
+                                <div class="crm-table-wrap">
                                     <table class="crm-table min-w-[760px] lg:min-w-[860px]">
                                         <thead>
-                                            <tr><th>Service</th><th>Mode</th><th>Rate</th><th>Files</th><th>Actions</th></tr>
+                                            <tr><th>Use</th><th>Service</th><th>Mode</th><th>Rate</th><th>Files</th><th>Actions</th></tr>
                                         </thead>
                                         <tbody class="divide-y divide-slate-100">
                                             @foreach ($serviceAssignments as $serviceAssignment)
-                                                @php($serviceNeedle = strtolower(trim(($serviceAssignment->service?->name ?? '').' '.($serviceAssignment->service?->code ?? '').' '.($serviceAssignment->service?->personModeLabel() ?? ''))))
-                                                <tr x-show="!serviceSearch || @js($serviceNeedle).includes(serviceSearch.toLowerCase().trim())">
+                                                <tr>
+                                                    <td>
+                                                        <input type="checkbox" data-assigned-service-toggle name="service_ids[]" value="{{ $serviceAssignment->service_id }}" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400">
+                                                    </td>
                                                     <td>
                                                         <div class="flex flex-wrap items-center gap-2">
                                                             <div class="font-semibold text-slate-950">{{ $serviceAssignment->service?->name }}</div>
@@ -306,6 +332,13 @@
                                         </tbody>
                                     </table>
                                 </div>
+
+                                    @if ($serviceAssignments->hasPages())
+                                        <div>
+                                            {{ $serviceAssignments->links() }}
+                                        </div>
+                                    @endif
+                                </form>
                             @endif
                         @else
                             <div class="flex h-full min-h-[22rem] items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
@@ -376,9 +409,8 @@
         </form>
     </x-modal>
 
-    <x-modal name="assign-venue-modal" :show="$errors->attachVenue->isNotEmpty()" maxWidth="2xl" focusable>
-        <form method="POST" action="{{ route('admin.master-data.employees.assignments.venues.attach', $employee) }}" class="space-y-5 p-6" x-data="{ venueSearch: '', selectedVenueId: '{{ old('venue_id') }}' }">
-            @csrf
+    <x-modal name="assign-venue-modal" :show="$errors->attachVenue->isNotEmpty() || request('open_modal') === 'assign-venue-modal'" maxWidth="2xl" focusable>
+        <div class="space-y-5 p-6" x-data="{ selectedVenueId: '{{ old('venue_id') }}' }">
             <div class="flex items-start justify-between gap-4">
                 <div>
                     <p class="crm-section-title">Assign venue</p>
@@ -387,50 +419,67 @@
                 <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
             </div>
 
-            @if ($availableVenues->isEmpty())
+            @if ($availableVenues->total() === 0)
                 <p class="text-sm leading-6 text-slate-600">All active venues are already assigned to this employee.</p>
             @else
-                @if ($employee->supportsFrozenFund())
-                    <div>
-                        <x-input-label for="attach_venue_frozen_fund" value="Frozen fund" />
-                        <x-text-input id="attach_venue_frozen_fund" name="frozen_fund" :value="old('frozen_fund', '0.00')" class="crm-input mt-2 w-full" />
-                        <x-input-error :messages="$errors->attachVenue->get('frozen_fund')" class="mt-2" />
-                    </div>
-                @endif
-            @endif
-
-            @if ($availableVenues->isNotEmpty())
-                <div>
+                <form method="GET" action="{{ route('admin.master-data.employees.assignments.edit', $employee) }}" class="space-y-3">
+                    <input type="hidden" name="open_modal" value="assign-venue-modal">
+                    @if ($selectedVenue)
+                        <input type="hidden" name="venue" value="{{ $selectedVenue->id }}">
+                    @endif
+                    @if ($selectedPackageAssignment)
+                        <input type="hidden" name="package" value="{{ $selectedPackageAssignment->package_id }}">
+                    @endif
                     <x-input-label for="assign_existing_venue_search" value="Search existing venues" />
-                    <x-text-input id="assign_existing_venue_search" x-model="venueSearch" class="crm-input mt-2 w-full" placeholder="Search by venue name or code" />
-                </div>
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <x-text-input id="assign_existing_venue_search" name="venue_search" :value="$catalogFilters['venue_search'] ?? ''" class="crm-input w-full" placeholder="Search by venue name or code" />
+                        <button type="submit" class="crm-button crm-button-secondary justify-center sm:min-w-[7rem]">Search</button>
+                    </div>
+                </form>
 
-                <div class="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
-                    @foreach ($availableVenues as $venue)
-                        @php($availableVenueNeedle = strtolower(trim($venue->name.' '.$venue->code)))
-                        <label
-                            x-show="!venueSearch || @js($availableVenueNeedle).includes(venueSearch.toLowerCase().trim())"
-                            class="block rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
-                            :class="selectedVenueId === '{{ $venue->id }}' ? 'border-cyan-300 bg-cyan-50 ring-2 ring-cyan-200/70' : ''"
-                        >
-                            <span class="flex items-start gap-3">
-                                <input type="radio" name="venue_id" value="{{ $venue->id }}" x-model="selectedVenueId" class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400">
-                                <span>
-                                    <span class="block font-semibold text-slate-950">{{ $venue->name }}</span>
-                                    <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ $venue->code ?: 'No code' }}</span>
+                <p class="text-sm leading-6 text-slate-600">Only 20 venues load at a time.</p>
+
+                <form method="POST" action="{{ route('admin.master-data.employees.assignments.venues.attach', $employee) }}" class="space-y-5">
+                    @csrf
+
+                    @if ($employee->supportsFrozenFund())
+                        <div>
+                            <x-input-label for="attach_venue_frozen_fund" value="Frozen fund" />
+                            <x-text-input id="attach_venue_frozen_fund" name="frozen_fund" :value="old('frozen_fund', '0.00')" class="crm-input mt-2 w-full" />
+                            <x-input-error :messages="$errors->attachVenue->get('frozen_fund')" class="mt-2" />
+                        </div>
+                    @endif
+
+                    <div class="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                        @foreach ($availableVenues as $venue)
+                            <label
+                                class="block rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
+                                :class="selectedVenueId === '{{ $venue->id }}' ? 'border-cyan-300 bg-cyan-50 ring-2 ring-cyan-200/70' : ''"
+                            >
+                                <span class="flex items-start gap-3">
+                                    <input type="radio" name="venue_id" value="{{ $venue->id }}" x-model="selectedVenueId" class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400">
+                                    <span>
+                                        <span class="block font-semibold text-slate-950">{{ $venue->name }}</span>
+                                        <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ $venue->code ?: 'No code' }}</span>
+                                    </span>
                                 </span>
-                            </span>
-                        </label>
-                    @endforeach
-                </div>
-                <x-input-error :messages="$errors->attachVenue->get('venue_id')" class="mt-2" />
-            @endif
+                            </label>
+                        @endforeach
+                    </div>
+                    @if ($availableVenues->hasPages())
+                        <div class="crm-pagination-shell">
+                            {{ $availableVenues->links() }}
+                        </div>
+                    @endif
+                    <x-input-error :messages="$errors->attachVenue->get('venue_id')" class="mt-2" />
 
-            <div class="flex justify-end gap-3">
-                <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
-                <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center" @disabled($availableVenues->isEmpty())>Assign venue</button>
-            </div>
-        </form>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                        <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center">Assign venue</button>
+                    </div>
+                </form>
+            @endif
+        </div>
     </x-modal>
 
     @if ($selectedVenue)
@@ -471,9 +520,8 @@
             </form>
         </x-modal>
 
-        <x-modal name="assign-package-modal" :show="$errors->attachPackage->isNotEmpty()" maxWidth="2xl" focusable>
-            <form method="POST" action="{{ route('admin.master-data.employees.assignments.packages.attach', [$employee, $selectedVenue]) }}" class="space-y-5 p-6" x-data="{ packageSearch: '', selectedPackageId: '{{ old('package_id') }}' }">
-                @csrf
+        <x-modal name="assign-package-modal" :show="$errors->attachPackage->isNotEmpty() || request('open_modal') === 'assign-package-modal'" maxWidth="2xl" focusable>
+            <div class="space-y-5 p-6" x-data="{ selectedPackageId: '{{ old('package_id') }}' }">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <p class="crm-section-title">Assign package</p>
@@ -482,40 +530,58 @@
                     <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
                 </div>
 
-                @if ($availablePackages->isEmpty())
+                @if ($availablePackages->total() === 0)
                     <p class="text-sm leading-6 text-slate-600">All active packages are already attached to this venue for the selected employee.</p>
                 @else
-                    <div>
+                    <form method="GET" action="{{ route('admin.master-data.employees.assignments.edit', $employee) }}" class="space-y-3">
+                        <input type="hidden" name="open_modal" value="assign-package-modal">
+                        <input type="hidden" name="venue" value="{{ $selectedVenue->id }}">
+                        @if ($selectedPackageAssignment)
+                            <input type="hidden" name="package" value="{{ $selectedPackageAssignment->package_id }}">
+                        @endif
                         <x-input-label for="assign_existing_package_search" value="Search existing packages" />
-                        <x-text-input id="assign_existing_package_search" x-model="packageSearch" class="crm-input mt-2 w-full" placeholder="Search by package name or code" />
-                    </div>
+                        <div class="flex flex-col gap-3 sm:flex-row">
+                            <x-text-input id="assign_existing_package_search" name="package_search" :value="$catalogFilters['package_search'] ?? ''" class="crm-input w-full" placeholder="Search by package name, code, or description" />
+                            <button type="submit" class="crm-button crm-button-secondary justify-center sm:min-w-[7rem]">Search</button>
+                        </div>
+                    </form>
 
-                    <div class="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
-                        @foreach ($availablePackages as $package)
-                            @php($availablePackageNeedle = strtolower(trim($package->name.' '.$package->code)))
-                            <label
-                                x-show="!packageSearch || @js($availablePackageNeedle).includes(packageSearch.toLowerCase().trim())"
-                                class="block rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
-                                :class="selectedPackageId === '{{ $package->id }}' ? 'border-cyan-300 bg-cyan-50 ring-2 ring-cyan-200/70' : ''"
-                            >
-                                <span class="flex items-start gap-3">
-                                    <input type="radio" name="package_id" value="{{ $package->id }}" x-model="selectedPackageId" class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400">
-                                    <span>
-                                        <span class="block font-semibold text-slate-950">{{ $package->name }}</span>
-                                        <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ $package->code ?: 'No code' }}</span>
+                    <p class="text-sm leading-6 text-slate-600">When you attach an existing package, its active mapped services are imported automatically into this employee package. You can then bulk remove only the services you do not want.</p>
+                    <p class="text-sm leading-6 text-slate-600">Only 20 packages load at a time.</p>
+
+                    <form method="POST" action="{{ route('admin.master-data.employees.assignments.packages.attach', [$employee, $selectedVenue]) }}" class="space-y-5">
+                        @csrf
+
+                        <div class="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                            @foreach ($availablePackages as $package)
+                                <label
+                                    class="block rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
+                                    :class="selectedPackageId === '{{ $package->id }}' ? 'border-cyan-300 bg-cyan-50 ring-2 ring-cyan-200/70' : ''"
+                                >
+                                    <span class="flex items-start gap-3">
+                                        <input type="radio" name="package_id" value="{{ $package->id }}" x-model="selectedPackageId" class="mt-1 border-slate-300 text-cyan-600 focus:ring-cyan-400">
+                                        <span>
+                                            <span class="block font-semibold text-slate-950">{{ $package->name }}</span>
+                                            <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ $package->code ?: 'No code' }}</span>
+                                        </span>
                                     </span>
-                                </span>
-                            </label>
-                        @endforeach
-                    </div>
+                                </label>
+                            @endforeach
+                        </div>
+                        @if ($availablePackages->hasPages())
+                            <div class="crm-pagination-shell">
+                                {{ $availablePackages->links() }}
+                            </div>
+                        @endif
                         <x-input-error :messages="$errors->attachPackage->get('package_id')" class="mt-2" />
-                @endif
 
-                <div class="flex justify-end gap-3">
-                    <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
-                    <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center" @disabled($availablePackages->isEmpty())>Assign package</button>
-                </div>
-            </form>
+                        <div class="flex justify-end gap-3">
+                            <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                            <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center">Assign package</button>
+                        </div>
+                    </form>
+                @endif
+            </div>
         </x-modal>
     @endif
 
@@ -598,9 +664,8 @@
             </form>
         </x-modal>
 
-        <x-modal name="assign-service-modal" :show="$errors->attachService->isNotEmpty()" maxWidth="2xl" focusable>
-            <form method="POST" action="{{ route('admin.master-data.employees.assignments.services.attach', [$employee, $selectedVenue, $selectedPackageAssignment->package]) }}" class="space-y-5 p-6" x-data="{ serviceSearch: '' }">
-                @csrf
+        <x-modal name="assign-service-modal" :show="$errors->attachService->isNotEmpty() || request('open_modal') === 'assign-service-modal'" maxWidth="2xl" focusable>
+            <div class="space-y-5 p-6" x-data="{ selectAllVisible: false }">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <p class="crm-section-title">Assign services</p>
@@ -609,39 +674,60 @@
                     <button type="button" class="text-slate-400 transition hover:text-slate-700" x-on:click="$dispatch('close')">Close</button>
                 </div>
 
-                @if ($availableServices->isEmpty())
+                @if ($availableServices->total() === 0)
                     <p class="text-sm leading-6 text-slate-600">All active services are already attached to this selected employee package.</p>
                 @else
-                    <div>
+                    <form method="GET" action="{{ route('admin.master-data.employees.assignments.edit', $employee) }}" class="space-y-3">
+                        <input type="hidden" name="open_modal" value="assign-service-modal">
+                        <input type="hidden" name="venue" value="{{ $selectedVenue->id }}">
+                        <input type="hidden" name="package" value="{{ $selectedPackageAssignment->package_id }}">
                         <x-input-label for="assign_existing_service_search" value="Search existing services" />
-                        <x-text-input id="assign_existing_service_search" x-model="serviceSearch" class="crm-input mt-2 w-full" placeholder="Search by service name, code, or mode" />
+                        <div class="flex flex-col gap-3 sm:flex-row">
+                            <x-text-input id="assign_existing_service_search" name="available_service_search" :value="$catalogFilters['available_service_search'] ?? ''" class="crm-input w-full" placeholder="Search by service name, code, or notes" />
+                            <button type="submit" class="crm-button crm-button-secondary justify-center sm:min-w-[7rem]">Search</button>
+                        </div>
+                    </form>
+
+                    <div class="flex items-center justify-between gap-3 rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p class="text-sm leading-6 text-slate-600">Only 20 services load at a time. Select this page, save, then continue to the next page if needed.</p>
+                        <label class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            <input type="checkbox" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" x-model="selectAllVisible" x-on:change="document.querySelectorAll('[data-available-service-checkbox]').forEach((checkbox) => checkbox.checked = selectAllVisible)">
+                            Select visible page
+                        </label>
                     </div>
 
-                    <div class="grid max-h-[24rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2">
-                        @foreach ($availableServices as $service)
-                            @php($availableServiceNeedle = strtolower(trim($service->name.' '.$service->code.' '.$service->personModeLabel())))
-                            <label
-                                x-show="!serviceSearch || @js($availableServiceNeedle).includes(serviceSearch.toLowerCase().trim())"
-                                class="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
-                            >
-                                <span class="flex items-start gap-3">
-                                    <input type="checkbox" name="service_ids[]" value="{{ $service->id }}" class="mt-1 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked(collect(old('service_ids', []))->contains($service->id))>
-                                    <span>
-                                        <span class="block font-semibold text-slate-950">{{ $service->name }}</span>
-                                        <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ Money::formatMinor($service->standard_rate_minor) }} | {{ strtolower($service->personModeLabel()) }}</span>
+                    <form method="POST" action="{{ route('admin.master-data.employees.assignments.services.attach', [$employee, $selectedVenue, $selectedPackageAssignment->package]) }}" class="space-y-5">
+                        @csrf
+
+                        <div class="grid max-h-[24rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2">
+                            @foreach ($availableServices as $service)
+                                <label
+                                    class="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-cyan-300 hover:bg-cyan-50"
+                                >
+                                    <span class="flex items-start gap-3">
+                                        <input type="checkbox" name="service_ids[]" value="{{ $service->id }}" data-available-service-checkbox class="mt-1 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked(collect(old('service_ids', []))->contains($service->id))>
+                                        <span>
+                                            <span class="block font-semibold text-slate-950">{{ $service->name }}</span>
+                                            <span class="mt-1 block text-xs uppercase tracking-[0.16em] text-slate-400">{{ Money::formatMinor($service->standard_rate_minor) }} | {{ strtolower($service->personModeLabel()) }}</span>
+                                        </span>
                                     </span>
-                                </span>
-                            </label>
-                        @endforeach
-                    </div>
-                    <x-input-error :messages="$errors->attachService->get('service_ids')" class="mt-2" />
-                @endif
+                                </label>
+                            @endforeach
+                        </div>
+                        @if ($availableServices->hasPages())
+                            <div class="crm-pagination-shell">
+                                {{ $availableServices->links() }}
+                            </div>
+                        @endif
+                        <x-input-error :messages="$errors->attachService->get('service_ids')" class="mt-2" />
 
-                <div class="flex justify-end gap-3">
-                    <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
-                    <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center" @disabled($availableServices->isEmpty())>Assign services</button>
-                </div>
-            </form>
+                        <div class="flex justify-end gap-3">
+                            <button type="button" class="crm-button crm-button-secondary justify-center" x-on:click="$dispatch('close')">Cancel</button>
+                            <button type="submit" data-loading-label="Saving..." class="crm-button crm-button-primary justify-center">Assign services</button>
+                        </div>
+                    </form>
+                @endif
+            </div>
         </x-modal>
     @endif
 </x-app-layout>

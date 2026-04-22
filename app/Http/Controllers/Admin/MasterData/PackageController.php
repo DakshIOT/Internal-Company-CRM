@@ -14,6 +14,8 @@ use Illuminate\View\View;
 
 class PackageController extends Controller
 {
+    private const SERVICE_CATALOG_PAGE_SIZE = 20;
+
     public function index(Request $request): View
     {
         $query = Package::query()->withCount('services');
@@ -41,14 +43,36 @@ class PackageController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        $serviceFilters = [
+            'search' => trim((string) $request->string('service_search')),
+        ];
+
+        $serviceCatalog = Service::query()
+            ->active()
+            ->when($serviceFilters['search'] !== '', function ($query) use ($serviceFilters) {
+                $search = $serviceFilters['search'];
+
+                $query->where(function ($builder) use ($search) {
+                    $builder
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%")
+                        ->orWhere('notes', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->paginate(self::SERVICE_CATALOG_PAGE_SIZE, ['*'], 'service_page')
+            ->withQueryString();
+
         return view('admin.master-data.packages.form', [
             'isEditing' => false,
             'package' => new Package(['is_active' => true]),
-            'services' => Service::query()->orderBy('name')->get(),
-            'selectedServiceIds' => [],
-            'sortOrders' => [],
+            'selectedServiceIds' => collect(old('service_ids', []))->map(fn ($serviceId) => (int) $serviceId)->all(),
+            'sortOrders' => collect(old('sort_orders', []))->mapWithKeys(fn ($sortOrder, $serviceId) => [(int) $serviceId => $sortOrder])->all(),
+            'serviceFilters' => $serviceFilters,
+            'serviceCatalog' => $serviceCatalog,
+            'mappedServicesCount' => count(old('service_ids', [])),
         ]);
     }
 
@@ -64,22 +88,51 @@ class PackageController extends Controller
         $this->syncServices($package, $request->validated('service_ids', []), $request->validated('sort_orders', []));
 
         return redirect()
-            ->route('admin.master-data.packages.index')
-            ->with('status', 'Package created successfully.');
+            ->route('admin.master-data.packages.edit', $package)
+            ->with('status', 'Package created successfully. Continue mapping services below.');
     }
 
-    public function edit(Package $package): View
+    public function edit(Request $request, Package $package): View
     {
         $package->load('services');
+        $mappedServiceIds = $package->services->pluck('id')->all();
+        $serviceFilters = [
+            'search' => trim((string) $request->string('service_search')),
+        ];
+
+        $serviceCatalog = Service::query()
+            ->when($serviceFilters['search'] !== '', function ($query) use ($serviceFilters) {
+                $search = $serviceFilters['search'];
+
+                $query->where(function ($builder) use ($search) {
+                    $builder
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%")
+                        ->orWhere('notes', 'like', "%{$search}%");
+                });
+            })
+            ->where(function ($query) use ($mappedServiceIds) {
+                $query->where('is_active', true);
+
+                if ($mappedServiceIds !== []) {
+                    $query->orWhereIn('id', $mappedServiceIds);
+                }
+            })
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->paginate(self::SERVICE_CATALOG_PAGE_SIZE, ['*'], 'service_page')
+            ->withQueryString();
 
         return view('admin.master-data.packages.form', [
             'isEditing' => true,
             'package' => $package,
-            'services' => Service::query()->orderBy('name')->get(),
-            'selectedServiceIds' => $package->services->pluck('id')->all(),
+            'selectedServiceIds' => $mappedServiceIds,
             'sortOrders' => $package->services
                 ->mapWithKeys(fn (Service $service) => [$service->id => $service->pivot->sort_order])
                 ->all(),
+            'serviceFilters' => $serviceFilters,
+            'serviceCatalog' => $serviceCatalog,
+            'mappedServicesCount' => count($mappedServiceIds),
         ]);
     }
 
@@ -92,11 +145,72 @@ class PackageController extends Controller
             'is_active' => $request->boolean('is_active'),
         ]);
 
-        $this->syncServices($package, $request->validated('service_ids', []), $request->validated('sort_orders', []));
-
         return redirect()
             ->route('admin.master-data.packages.edit', $package)
             ->with('status', 'Package updated successfully.');
+    }
+
+    public function updateMapping(Request $request, Package $package): RedirectResponse
+    {
+        $data = $request->validate([
+            'visible_service_ids' => ['required', 'array', 'min:1'],
+            'visible_service_ids.*' => ['integer', 'exists:services,id'],
+            'service_ids' => ['nullable', 'array'],
+            'service_ids.*' => ['integer', 'exists:services,id'],
+            'sort_orders' => ['nullable', 'array'],
+            'sort_orders.*' => ['nullable', 'integer', 'min:1'],
+            'service_search' => ['nullable', 'string', 'max:120'],
+            'service_page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $visibleServiceIds = collect($data['visible_service_ids'])
+            ->map(fn ($serviceId) => (int) $serviceId)
+            ->unique()
+            ->values();
+        $selectedServiceIds = collect($data['service_ids'] ?? [])
+            ->map(fn ($serviceId) => (int) $serviceId)
+            ->intersect($visibleServiceIds)
+            ->values();
+        $selectedLookup = $selectedServiceIds->flip();
+
+        DB::transaction(function () use ($package, $visibleServiceIds, $selectedServiceIds, $selectedLookup, $data) {
+            if ($visibleServiceIds->isEmpty()) {
+                return;
+            }
+
+            $existingSortOrders = $package->services()
+                ->whereIn('services.id', $visibleServiceIds)
+                ->pluck('package_service.sort_order', 'services.id');
+
+            $detachIds = $visibleServiceIds->reject(fn (int $serviceId) => $selectedLookup->has($serviceId))->all();
+
+            if ($detachIds !== []) {
+                $package->services()->detach($detachIds);
+            }
+
+            $syncData = $selectedServiceIds->mapWithKeys(function (int $serviceId, int $index) use ($data, $existingSortOrders) {
+                return [
+                    $serviceId => [
+                        'sort_order' => max(
+                            1,
+                            (int) ($data['sort_orders'][$serviceId] ?? $existingSortOrders[$serviceId] ?? ($index + 1))
+                        ),
+                    ],
+                ];
+            })->all();
+
+            if ($syncData !== []) {
+                $package->services()->syncWithoutDetaching($syncData);
+            }
+        });
+
+        return redirect()
+            ->route('admin.master-data.packages.edit', [
+                'package' => $package,
+                'service_search' => $data['service_search'] ?? null,
+                'service_page' => $data['service_page'] ?? null,
+            ])
+            ->with('status', 'Package service mapping updated.');
     }
 
     public function destroy(Package $package): RedirectResponse
