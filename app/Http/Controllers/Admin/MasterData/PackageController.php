@@ -14,7 +14,7 @@ use Illuminate\View\View;
 
 class PackageController extends Controller
 {
-    private const SERVICE_CATALOG_PAGE_SIZE = 20;
+    private const SERVICE_CATALOG_PAGE_SIZE = 50;
 
     public function index(Request $request): View
     {

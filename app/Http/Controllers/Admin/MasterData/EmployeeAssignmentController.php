@@ -23,7 +23,7 @@ use Illuminate\View\View;
 class EmployeeAssignmentController extends Controller
 {
     private const ASSIGNED_SERVICE_PAGE_SIZE = 20;
-    private const CATALOG_PAGE_SIZE = 20;
+    private const CATALOG_PAGE_SIZE = 100;
 
     public function __construct(private AttachmentService $attachmentService)
     {

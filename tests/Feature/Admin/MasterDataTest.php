@@ -280,7 +280,7 @@ class MasterDataTest extends TestCase
         $admin = User::factory()->admin()->create();
         $package = Package::factory()->create();
 
-        Service::factory()->count(25)->create();
+        Service::factory()->count(60)->create();
         $targetService = Service::factory()->create([
             'name' => 'Needle Service',
             'code' => 'NEEDLE',
@@ -290,7 +290,8 @@ class MasterDataTest extends TestCase
             ->get(route('admin.master-data.packages.edit', $package))
             ->assertOk()
             ->assertSee('Save visible page mapping')
-            ->assertSee('Only 20 services load at a time.');
+            ->assertSee('Only 50 services load at a time.')
+            ->assertSee('service_page=2', false);
 
         $this->actingAs($admin)
             ->get(route('admin.master-data.packages.edit', [
@@ -300,6 +301,47 @@ class MasterDataTest extends TestCase
             ->assertOk()
             ->assertSee('Needle Service')
             ->assertSee('NEEDLE');
+    }
+
+    public function test_employee_assignment_modal_pagination_links_preserve_modal_state(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $selectedPackage = Package::factory()->create();
+
+        $employee->venues()->attach($venue->id, ['frozen_fund_minor' => 0]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $selectedPackage->id,
+        ]);
+
+        Package::factory()->count(105)->create();
+        Service::factory()->count(105)->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+                'package' => $selectedPackage->id,
+                'open_modal' => 'assign-package-modal',
+            ]))
+            ->assertOk()
+            ->assertSee('Only 100 packages load at a time.')
+            ->assertSee('open_modal=assign-package-modal', false)
+            ->assertSee('available_package_page=2', false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.master-data.employees.assignments.edit', [
+                'employee' => $employee,
+                'venue' => $venue->id,
+                'package' => $selectedPackage->id,
+                'open_modal' => 'assign-service-modal',
+            ]))
+            ->assertOk()
+            ->assertSee('Only 100 services load at a time.')
+            ->assertSee('open_modal=assign-service-modal', false)
+            ->assertSee('available_service_page=2', false);
     }
 
     public function test_admin_can_edit_venue_and_save_updated_vendor_slots_and_employee_links(): void

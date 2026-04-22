@@ -84,7 +84,7 @@
 
                     <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
                         <p class="text-sm leading-6 text-slate-600">
-                            Only 20 services load at a time so large catalogs do not freeze the page. You can create the package with the selected visible services and continue editing later if needed.
+                            Only 50 services load at a time so large catalogs do not freeze the page. You can create the package with the selected visible services and continue editing later if needed.
                         </p>
                         <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-600" x-data="{ checked: false }">
                             <input type="checkbox" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
@@ -145,7 +145,11 @@
 
                     @if ($serviceCatalog && $serviceCatalog->hasPages())
                         <div class="mt-5">
-                            {{ $serviceCatalog->links() }}
+                            {{ $serviceCatalog
+                                ->appends([
+                                    'service_search' => $serviceFilters['search'] ?? null,
+                                ])
+                                ->links() }}
                         </div>
                     @endif
                 </article>
@@ -176,7 +180,7 @@
 
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <p class="text-sm leading-6 text-slate-600">
-                            Only 20 services load at a time. Save the current page after checking or unchecking services.
+                            Only 50 services load at a time. Save the current page after checking or unchecking services.
                         </p>
                         <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-600" x-data="{ checked: false }">
                             <input type="checkbox" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
@@ -241,7 +245,11 @@
 
                     @if ($serviceCatalog && $serviceCatalog->hasPages())
                         <div>
-                            {{ $serviceCatalog->links() }}
+                            {{ $serviceCatalog
+                                ->appends([
+                                    'service_search' => $serviceFilters['search'] ?? null,
+                                ])
+                                ->links() }}
                         </div>
                     @endif
 

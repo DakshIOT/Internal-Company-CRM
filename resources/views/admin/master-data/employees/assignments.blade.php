@@ -468,7 +468,14 @@
                     </div>
                     @if ($availableVenues->hasPages())
                         <div class="crm-pagination-shell">
-                            {{ $availableVenues->links() }}
+                            {{ $availableVenues
+                                ->appends([
+                                    'open_modal' => 'assign-venue-modal',
+                                    'venue' => $selectedVenue?->id,
+                                    'package' => $selectedPackageAssignment?->package_id,
+                                    'venue_search' => $catalogFilters['venue_search'] ?? null,
+                                ])
+                                ->links() }}
                         </div>
                     @endif
                     <x-input-error :messages="$errors->attachVenue->get('venue_id')" class="mt-2" />
@@ -547,7 +554,7 @@
                     </form>
 
                     <p class="text-sm leading-6 text-slate-600">When you attach an existing package, its active mapped services are imported automatically into this employee package. You can then bulk remove only the services you do not want.</p>
-                    <p class="text-sm leading-6 text-slate-600">Only 20 packages load at a time.</p>
+                    <p class="text-sm leading-6 text-slate-600">Only 100 packages load at a time.</p>
 
                     <form method="POST" action="{{ route('admin.master-data.employees.assignments.packages.attach', [$employee, $selectedVenue]) }}" class="space-y-5">
                         @csrf
@@ -570,7 +577,14 @@
                         </div>
                         @if ($availablePackages->hasPages())
                             <div class="crm-pagination-shell">
-                                {{ $availablePackages->links() }}
+                                {{ $availablePackages
+                                    ->appends([
+                                        'open_modal' => 'assign-package-modal',
+                                        'venue' => $selectedVenue->id,
+                                        'package' => $selectedPackageAssignment?->package_id,
+                                        'package_search' => $catalogFilters['package_search'] ?? null,
+                                    ])
+                                    ->links() }}
                             </div>
                         @endif
                         <x-input-error :messages="$errors->attachPackage->get('package_id')" class="mt-2" />
@@ -689,7 +703,7 @@
                     </form>
 
                     <div class="flex items-center justify-between gap-3 rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p class="text-sm leading-6 text-slate-600">Only 20 services load at a time. Select this page, save, then continue to the next page if needed.</p>
+                        <p class="text-sm leading-6 text-slate-600">Only 100 services load at a time. Select this page, save, then continue to the next page if needed.</p>
                         <label class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                             <input type="checkbox" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" x-model="selectAllVisible" x-on:change="document.querySelectorAll('[data-available-service-checkbox]').forEach((checkbox) => checkbox.checked = selectAllVisible)">
                             Select visible page
@@ -716,7 +730,14 @@
                         </div>
                         @if ($availableServices->hasPages())
                             <div class="crm-pagination-shell">
-                                {{ $availableServices->links() }}
+                                {{ $availableServices
+                                    ->appends([
+                                        'open_modal' => 'assign-service-modal',
+                                        'venue' => $selectedVenue->id,
+                                        'package' => $selectedPackageAssignment->package_id,
+                                        'available_service_search' => $catalogFilters['available_service_search'] ?? null,
+                                    ])
+                                    ->links() }}
                             </div>
                         @endif
                         <x-input-error :messages="$errors->attachService->get('service_ids')" class="mt-2" />
