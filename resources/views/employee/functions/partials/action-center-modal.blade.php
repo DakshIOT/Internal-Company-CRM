@@ -69,21 +69,19 @@
                     @method('PUT')
 
                     <div class="crm-table-wrap">
-                        <table class="crm-table min-w-[980px]">
+                        <table class="crm-table min-w-[760px]">
                             <thead>
                                 <tr>
                                     <th>Use</th>
                                     <th>Service</th>
                                     <th>Persons</th>
-                                    <th>Rate</th>
                                     <th>Extra Charge</th>
                                     <th>Notes</th>
-                                    <th>Row Total</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 @foreach ($functionPackage->serviceLines as $line)
-                                    <tr x-data="{ personMode: '{{ $line->person_input_mode ?: ($line->uses_persons ? 'fixed' : 'none') }}', persons: '{{ $line->persons }}', rate: '{{ number_format($line->rate_minor / 100, 2, '.', '') }}', extra: '{{ number_format($line->extra_charge_minor / 100, 2, '.', '') }}' }">
+                                    <tr>
                                         <td>
                                             <input type="checkbox" name="service_lines[{{ $line->id }}][is_selected]" value="1" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-400" @checked($line->is_selected) />
                                         </td>
@@ -107,7 +105,6 @@
                                             @if ($line->allowsEmployeePersonEntry())
                                                 <x-text-input
                                                     name="service_lines[{{ $line->id }}][persons]"
-                                                    x-model="persons"
                                                     :value="old('service_lines.'.$line->id.'.persons', $line->persons)"
                                                     type="number"
                                                     min="0"
@@ -125,19 +122,15 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <x-text-input name="service_lines[{{ $line->id }}][rate]" x-model="rate" :value="old('service_lines.'.$line->id.'.rate', Money::formatMinorInput($line->rate_minor))" class="crm-input w-full min-w-[7rem] bg-slate-100" readonly />
-                                        </td>
-                                        <td>
-                                            <x-text-input name="service_lines[{{ $line->id }}][extra_charge]" x-model="extra" :value="old('service_lines.'.$line->id.'.extra_charge', Money::formatMinorInput($line->extra_charge_minor))" class="crm-input w-full min-w-[7rem]" />
+                                            <x-text-input name="service_lines[{{ $line->id }}][extra_charge]" :value="old('service_lines.'.$line->id.'.extra_charge', Money::formatMinorInput($line->extra_charge_minor))" class="crm-input w-full min-w-[7rem]" />
                                         </td>
                                         <td>
                                             <textarea name="service_lines[{{ $line->id }}][notes]" rows="2" class="crm-input min-w-[14rem]">{{ old('service_lines.'.$line->id.'.notes', $line->notes) }}</textarea>
                                         </td>
-                                        <td class="font-semibold text-slate-900" x-text="(((((personMode === 'none') ? 1 : parseFloat(persons || 0)) * parseFloat(rate || 0)) + parseFloat(extra || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></td>
                                     </tr>
                                 @endforeach
                                 <tr class="bg-cyan-50/70">
-                                    <td colspan="6" class="font-semibold text-slate-900">Package Total</td>
+                                    <td colspan="4" class="font-semibold text-slate-900">Package Total</td>
                                     <td class="font-semibold text-slate-950">{{ Money::formatMinor($functionPackage->total_minor) }}</td>
                                 </tr>
                             </tbody>

@@ -570,12 +570,10 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th style="width: 21%">Package</th>
-                                    <th style="width: 30%">Service line</th>
-                                    <th style="width: 10%">Persons</th>
-                                    <th style="width: 12%">Rate</th>
-                                    <th style="width: 12%">Extra charge</th>
-                                    <th style="width: 15%">Line total</th>
+                                    <th style="width: 28%">Package</th>
+                                    <th style="width: 42%">Service line</th>
+                                    <th style="width: 12%">Persons</th>
+                                    <th style="width: 18%">Extra charge</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -627,19 +625,17 @@
                                                 @endif
                                             </td>
                                             <td class="table-number">{{ $serviceLine->usesPersonsField() ? $serviceLine->persons : 'No persons' }}</td>
-                                            <td class="table-number">{{ Money::formatMinor($serviceLine->rate_minor) }}</td>
                                             <td class="table-number">{{ Money::formatMinor($serviceLine->extra_charge_minor) }}</td>
-                                            <td class="table-number">{{ Money::formatMinor($serviceLine->line_total_minor) }}</td>
                                         </tr>
                                     @empty
                                         <tr>
                                             <td><span class="cell-title">{{ $package->name_snapshot }}</span></td>
-                                            <td colspan="5">No selected service lines recorded.</td>
+                                            <td colspan="3">No selected service lines recorded.</td>
                                         </tr>
                                     @endforelse
                                 @empty
                                     <tr>
-                                        <td colspan="6">No packages recorded for this function entry.</td>
+                                        <td colspan="4">No packages recorded for this function entry.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

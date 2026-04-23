@@ -343,6 +343,87 @@ class FunctionEntryTest extends TestCase
         $this->assertSame(9000, (int) $functionEntry->package_total_minor);
     }
 
+    public function test_employee_package_rows_hide_service_rate_and_row_total_but_still_calculate_totals(): void
+    {
+        $employee = User::factory()->employeeC()->create();
+        $venue = Venue::factory()->create();
+        $this->assignEmployeeToVenue($employee, $venue);
+
+        $service = Service::factory()->create([
+            'name' => 'Private Rate Service',
+            'standard_rate_minor' => 12000,
+            'uses_persons' => true,
+            'person_input_mode' => 'employee',
+            'default_persons' => null,
+        ]);
+        $package = Package::factory()->create(['name' => 'Private Rate Package']);
+        $package->services()->attach($service->id, ['sort_order' => 1]);
+
+        $employee->serviceAssignments()->create([
+            'venue_id' => $venue->id,
+            'service_id' => $service->id,
+        ]);
+        $employee->packageAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+        ]);
+        $employee->packageServiceAssignments()->create([
+            'venue_id' => $venue->id,
+            'package_id' => $package->id,
+            'service_id' => $service->id,
+        ]);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.store'), [
+                'entry_date' => '2026-04-23',
+                'name' => 'Private Rate Function',
+            ])->assertRedirect();
+
+        $functionEntry = FunctionEntry::firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->post(route('employee.functions.packages.store', $functionEntry), [
+                'package_id' => $package->id,
+            ])->assertRedirect();
+
+        $functionPackage = $functionEntry->fresh()->packages()->with('serviceLines')->firstOrFail();
+        $line = $functionPackage->serviceLines->firstOrFail();
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->get(route('employee.functions.edit', $functionEntry))
+            ->assertOk()
+            ->assertSee('Private Rate Service')
+            ->assertSee('Package Total')
+            ->assertDontSee('<th>Rate</th>', false)
+            ->assertDontSee('<th>Row Total</th>', false)
+            ->assertDontSee('name="service_lines['.$line->id.'][rate]"', false);
+
+        $this->actingAs($employee)
+            ->withSession(['selected_venue_id' => $venue->id])
+            ->put(route('employee.functions.packages.update', [$functionEntry, $functionPackage]), [
+                'service_lines' => [
+                    $line->id => [
+                        'is_selected' => '1',
+                        'persons' => '2',
+                        'extra_charge' => '30.00',
+                        'notes' => 'Employee entered details without seeing rate',
+                    ],
+                ],
+            ])->assertRedirect();
+
+        $line->refresh();
+        $functionEntry->refresh();
+        $functionPackage->refresh();
+
+        $this->assertSame(12000, (int) $line->rate_minor);
+        $this->assertSame(27000, (int) $line->line_total_minor);
+        $this->assertSame(27000, (int) $functionPackage->total_minor);
+        $this->assertSame(27000, (int) $functionEntry->package_total_minor);
+    }
+
     public function test_package_add_uses_package_specific_service_assignments_when_present(): void
     {
         $employee = User::factory()->employeeA()->create();
@@ -874,6 +955,8 @@ class FunctionEntryTest extends TestCase
             ->assertSee('Photography')
             ->assertSee('Bring backup camera and flash kit.')
             ->assertSee('Entry notes: Lead crew')
+            ->assertDontSee('<th style="width: 12%">Rate</th>', false)
+            ->assertDontSee('<th style="width: 15%">Line total</th>', false)
             ->assertDontSee('Hidden Catering')
             ->assertSee('Flowers')
             ->assertSee('Advance')
@@ -1022,7 +1105,8 @@ class FunctionEntryTest extends TestCase
             ->withSession(['selected_venue_id' => $venue->id])
             ->get(route('employee.functions.edit', $functionEntry))
             ->assertOk()
-            ->assertSee('3000.00');
+            ->assertDontSee('<th>Rate</th>', false)
+            ->assertDontSee('<th>Row Total</th>', false);
 
         $functionEntry->refresh();
         $functionPackage = $functionEntry->packages()->with('serviceLines')->firstOrFail();
