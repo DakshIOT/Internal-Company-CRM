@@ -244,30 +244,6 @@
                 gap: 8px;
             }
 
-            .package-cell__total {
-                margin-top: 18px;
-                text-align: right;
-            }
-
-            .package-cell__total-label {
-                color: var(--muted);
-                font-size: 10px;
-                font-weight: 700;
-                letter-spacing: 0.18em;
-                text-transform: uppercase;
-            }
-
-            .package-cell__total-value {
-                margin-top: 4px;
-                font-size: clamp(14px, 1.35vw, 16px);
-                font-weight: 800;
-                line-height: 1.05;
-                letter-spacing: -0.02em;
-                overflow-wrap: anywhere;
-                word-break: break-word;
-                font-variant-numeric: tabular-nums;
-            }
-
             .table-number {
                 text-align: right;
                 white-space: nowrap;
@@ -329,6 +305,44 @@
 
             tbody tr:last-child td {
                 border-bottom: 0;
+            }
+
+            .package-summary-row td {
+                background: #f8fafc;
+                border-top: 1px solid #dbe3ee;
+            }
+
+            .package-summary {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .package-summary__item {
+                border: 1px solid #dbe3ee;
+                border-radius: 14px;
+                background: #fff;
+                padding: 11px 12px;
+            }
+
+            .package-summary__label {
+                color: var(--muted);
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+            }
+
+            .package-summary__value {
+                margin-top: 5px;
+                color: var(--ink);
+                font-size: clamp(14px, 1.35vw, 17px);
+                font-weight: 800;
+                line-height: 1.05;
+                letter-spacing: -0.02em;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                font-variant-numeric: tabular-nums;
             }
 
             .cell-title {
@@ -475,6 +489,10 @@
                 .entry-title {
                     font-size: 24px;
                 }
+
+                .package-summary {
+                    grid-template-columns: 1fr;
+                }
             }
         </style>
     </head>
@@ -595,14 +613,6 @@
                                                                 {{ $package->package?->description ?: 'No package notes' }}
                                                             </div>
                                                         </div>
-                                                        <div class="package-cell__total">
-                                                            <div class="package-cell__total-label">Selected services</div>
-                                                            <div class="package-cell__total-value">{{ Money::formatMinor($packageGrossTotalMinor) }}</div>
-                                                            <div class="package-cell__total-label" style="margin-top: 6px;">Package discount</div>
-                                                            <div class="package-cell__total-value">{{ Money::formatMinor($package->discount_minor) }}</div>
-                                                            <div class="package-cell__total-label" style="margin-top: 6px;">Package total</div>
-                                                            <div class="package-cell__total-value">{{ Money::formatMinor($package->total_minor) }}</div>
-                                                        </div>
                                                     </div>
                                                 </td>
                                             @endif
@@ -638,6 +648,24 @@
                                             <td colspan="3">No selected service lines recorded.</td>
                                         </tr>
                                     @endforelse
+                                    <tr class="package-summary-row">
+                                        <td colspan="4">
+                                            <div class="package-summary">
+                                                <div class="package-summary__item">
+                                                    <div class="package-summary__label">Selected services</div>
+                                                    <div class="package-summary__value">{{ Money::formatMinor($packageGrossTotalMinor) }}</div>
+                                                </div>
+                                                <div class="package-summary__item">
+                                                    <div class="package-summary__label">Package discount</div>
+                                                    <div class="package-summary__value">{{ Money::formatMinor($package->discount_minor) }}</div>
+                                                </div>
+                                                <div class="package-summary__item">
+                                                    <div class="package-summary__label">Package total</div>
+                                                    <div class="package-summary__value">{{ Money::formatMinor($package->total_minor) }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 @empty
                                     <tr>
                                         <td colspan="4">No packages recorded for this function entry.</td>

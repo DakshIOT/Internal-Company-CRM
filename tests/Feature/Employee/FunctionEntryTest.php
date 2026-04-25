@@ -955,6 +955,7 @@ class FunctionEntryTest extends TestCase
             ->assertSee('March Wedding')
             ->assertSee('Wedding Prime')
             ->assertSee('Package note for wedding prime.')
+            ->assertSee('class="package-summary"', false)
             ->assertSee('Package discount')
             ->assertSee('225.00')
             ->assertSee('Photography')
