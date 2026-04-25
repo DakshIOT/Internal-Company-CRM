@@ -14,6 +14,7 @@ class FunctionPackageLinesRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'package_discount' => ['nullable', 'numeric', 'min:0'],
             'service_lines' => ['required', 'array', 'min:1'],
             'service_lines.*.is_selected' => ['nullable', 'boolean'],
             'service_lines.*.persons' => ['nullable', 'integer', 'min:0', 'max:100000'],

@@ -45,6 +45,9 @@
         </article>
 
         @forelse ($functionEntry->packages as $functionPackage)
+            @php
+                $packageGrossTotalMinor = $functionPackage->serviceLines->sum(fn ($line) => $line->is_selected ? (int) $line->line_total_minor : 0);
+            @endphp
             <article class="crm-panel p-5">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
@@ -53,6 +56,9 @@
                         <p class="mt-1 text-sm text-slate-500">{{ $functionPackage->code_snapshot ?: 'No code' }}</p>
                     </div>
                     <div class="flex flex-wrap gap-2 crm-print-hidden">
+                        @if ((int) $functionPackage->discount_minor > 0)
+                            <span class="crm-chip bg-amber-50 text-amber-700">Package discount {{ Money::formatMinor($functionPackage->discount_minor) }}</span>
+                        @endif
                         <span class="crm-chip bg-cyan-50 text-cyan-700">Package total {{ Money::formatMinor($functionPackage->total_minor) }}</span>
                         <form method="POST" action="{{ route('employee.functions.packages.destroy', [$functionEntry, $functionPackage]) }}">
                             @csrf
@@ -130,11 +136,34 @@
                                     </tr>
                                 @endforeach
                                 <tr class="bg-cyan-50/70">
-                                    <td colspan="4" class="font-semibold text-slate-900">Package Total</td>
-                                    <td class="font-semibold text-slate-950">{{ Money::formatMinor($functionPackage->total_minor) }}</td>
+                                    <td colspan="4" class="font-semibold text-slate-900">Selected Services Total</td>
+                                    <td class="font-semibold text-slate-950">{{ Money::formatMinor($packageGrossTotalMinor) }}</td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <div class="rounded-[1.25rem] border border-slate-200 bg-white p-4">
+                        <div class="grid gap-4 lg:grid-cols-[1fr_12rem_12rem] lg:items-end">
+                            <div>
+                                <p class="crm-section-title">Package discount</p>
+                                <p class="mt-2 text-sm text-slate-600">This discount applies only to {{ $functionPackage->name_snapshot }}.</p>
+                            </div>
+                            <div>
+                                <label class="crm-field-label" for="package_discount_{{ $functionPackage->id }}">Discount amount</label>
+                                <x-text-input
+                                    id="package_discount_{{ $functionPackage->id }}"
+                                    name="package_discount"
+                                    :value="old('package_discount', Money::formatMinorInput($functionPackage->discount_minor))"
+                                    class="crm-input mt-2 w-full"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div class="rounded-2xl bg-slate-950 px-4 py-3 text-white">
+                                <p class="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-cyan-100">Package total</p>
+                                <p class="mt-1 text-lg font-semibold">{{ Money::formatMinor($functionPackage->total_minor) }}</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="flex justify-end">

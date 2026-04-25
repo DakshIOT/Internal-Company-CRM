@@ -139,6 +139,7 @@ class FunctionEntryTest extends TestCase
         $this->actingAs($employee)
             ->withSession(['selected_venue_id' => $venue->id])
             ->put(route('employee.functions.packages.update', [$functionEntry, $functionPackage]), [
+                'package_discount' => '20.00',
                 'service_lines' => [
                     $lineA->id => [
                         'is_selected' => '1',
@@ -188,15 +189,16 @@ class FunctionEntryTest extends TestCase
         $functionEntry->refresh();
         $functionPackage->refresh();
 
-        $this->assertSame(27500, (int) $functionPackage->total_minor);
-        $this->assertSame(27500, (int) $functionEntry->package_total_minor);
+        $this->assertSame(2000, (int) $functionPackage->discount_minor);
+        $this->assertSame(25500, (int) $functionPackage->total_minor);
+        $this->assertSame(25500, (int) $functionEntry->package_total_minor);
         $this->assertSame(3000, (int) $functionEntry->extra_charge_total_minor);
         $this->assertSame(5000, (int) $functionEntry->discount_total_minor);
-        $this->assertSame(25500, (int) $functionEntry->function_total_minor);
+        $this->assertSame(23500, (int) $functionEntry->function_total_minor);
         $this->assertSame(10000, (int) $functionEntry->paid_total_minor);
-        $this->assertSame(15500, (int) $functionEntry->pending_total_minor);
+        $this->assertSame(13500, (int) $functionEntry->pending_total_minor);
         $this->assertSame(15000, (int) $functionEntry->frozen_fund_minor);
-        $this->assertSame(10500, (int) $functionEntry->net_total_after_frozen_fund_minor);
+        $this->assertSame(8500, (int) $functionEntry->net_total_after_frozen_fund_minor);
     }
 
     public function test_employee_can_enter_persons_for_employee_select_service_mode(): void
@@ -852,7 +854,8 @@ class FunctionEntryTest extends TestCase
             'package_id' => $package->id,
             'name_snapshot' => 'Wedding Prime',
             'code_snapshot' => 'WED-PRIME',
-            'total_minor' => 24000,
+            'discount_minor' => 1500,
+            'total_minor' => 22500,
         ]);
 
         $functionPackage->serviceLines()->create([
@@ -952,6 +955,8 @@ class FunctionEntryTest extends TestCase
             ->assertSee('March Wedding')
             ->assertSee('Wedding Prime')
             ->assertSee('Package note for wedding prime.')
+            ->assertSee('Package discount')
+            ->assertSee('225.00')
             ->assertSee('Photography')
             ->assertSee('Bring backup camera and flash kit.')
             ->assertSee('Entry notes: Lead crew')

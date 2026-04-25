@@ -28,8 +28,9 @@ class FunctionEntryTotalsService
         $packageTotalMinor = 0;
 
         $functionEntry->packages->each(function (FunctionPackage $functionPackage) use (&$packageTotalMinor) {
-            $computedTotalMinor = $functionPackage->serviceLines
+            $grossTotalMinor = $functionPackage->serviceLines
                 ->sum(fn (FunctionServiceLine $line) => $line->is_selected ? (int) $line->line_total_minor : 0);
+            $computedTotalMinor = max(0, $grossTotalMinor - (int) $functionPackage->discount_minor);
 
             if ((int) $functionPackage->total_minor !== $computedTotalMinor) {
                 $functionPackage->forceFill(['total_minor' => $computedTotalMinor])->save();

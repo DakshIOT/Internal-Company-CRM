@@ -581,6 +581,7 @@
                                     @php
                                         $selectedServiceLines = $package->serviceLines->where('is_selected', true)->values();
                                         $serviceLineCount = max($selectedServiceLines->count(), 1);
+                                        $packageGrossTotalMinor = $selectedServiceLines->sum('line_total_minor');
                                     @endphp
                                     @forelse ($selectedServiceLines as $lineIndex => $serviceLine)
                                         <tr>
@@ -595,7 +596,11 @@
                                                             </div>
                                                         </div>
                                                         <div class="package-cell__total">
-                                                            <div class="package-cell__total-label">Package total</div>
+                                                            <div class="package-cell__total-label">Selected services</div>
+                                                            <div class="package-cell__total-value">{{ Money::formatMinor($packageGrossTotalMinor) }}</div>
+                                                            <div class="package-cell__total-label" style="margin-top: 6px;">Package discount</div>
+                                                            <div class="package-cell__total-value">{{ Money::formatMinor($package->discount_minor) }}</div>
+                                                            <div class="package-cell__total-label" style="margin-top: 6px;">Package total</div>
                                                             <div class="package-cell__total-value">{{ Money::formatMinor($package->total_minor) }}</div>
                                                         </div>
                                                     </div>

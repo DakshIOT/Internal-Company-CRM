@@ -16,6 +16,7 @@ class FunctionPackage extends Model
         'package_id',
         'name_snapshot',
         'code_snapshot',
+        'discount_minor',
         'total_minor',
     ];
 

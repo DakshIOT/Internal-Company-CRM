@@ -104,8 +104,14 @@ class FunctionPackageController extends Controller
 
         $lines = $functionPackage->serviceLines()->get()->keyBy('id');
 
-        DB::transaction(function () use ($request, $functionEntry, $lines) {
-            foreach ($request->validated('service_lines') as $lineId => $payload) {
+        DB::transaction(function () use ($request, $functionEntry, $functionPackage, $lines) {
+            $validated = $request->validated();
+
+            $functionPackage->forceFill([
+                'discount_minor' => Money::toMinor($validated['package_discount'] ?? 0),
+            ])->save();
+
+            foreach ($validated['service_lines'] as $lineId => $payload) {
                 $serviceLine = $lines->get((int) $lineId);
 
                 if (! $serviceLine) {
